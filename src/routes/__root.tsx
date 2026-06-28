@@ -77,16 +77,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Insightform — Survey-driven product truth" },
+      {
+        name: "description",
+        content:
+          "Typeform-grade surveys for product teams. Every response feeds one bird's-eye view that becomes your source of truth.",
+      },
+      { name: "author", content: "Insightform" },
+      { property: "og:title", content: "Insightform — Survey-driven product truth" },
+      {
+        property: "og:description",
+        content:
+          "Beautiful surveys, one cross-survey dashboard. Make product decisions on signal, not vibes.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap",
+      },
       {
         rel: "stylesheet",
         href: appCss,
