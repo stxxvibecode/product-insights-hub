@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import {
   THEME_PRESETS,
   THEME_FONTS,
@@ -8,7 +11,8 @@ import {
   isValidHex,
   type SurveyTheme,
 } from "@/lib/survey-theme";
-import { Paintbrush, RotateCcw } from "lucide-react";
+import { Paintbrush, RotateCcw, Sparkles, Loader2 } from "lucide-react";
+import { generateTheme } from "@/lib/theme-ai.functions";
 
 export function ThemePanel({
   theme,
@@ -19,7 +23,31 @@ export function ThemePanel({
 }) {
   const [open, setOpen] = useState(false);
   const [hexDraft, setHexDraft] = useState(theme.accent ?? "");
+  const [prompt, setPrompt] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generateFn = useServerFn(generateTheme);
+  const aiMut = useMutation({
+    mutationFn: (p: string) => generateFn({ data: { prompt: p } }),
+    onSuccess: (next) => {
+      if (!next || Object.keys(next).length === 0) {
+        toast.message("No theme changes inferred — try a more specific prompt.");
+        return;
+      }
+      const merged: SurveyTheme = { ...theme, ...next };
+      // If AI picked a preset without a custom accent, drop any prior custom accent.
+      if (next.preset && !next.accent) delete merged.accent;
+      onChange(merged);
+      setPrompt("");
+      toast.success("Theme updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function submitPrompt() {
+    const v = prompt.trim();
+    if (!v || aiMut.isPending) return;
+    aiMut.mutate(v);
+  }
 
   useEffect(() => {
     setHexDraft(theme.accent ?? "");
@@ -58,6 +86,44 @@ export function ThemePanel({
       </button>
       {open && (
         <div className="space-y-4 px-4 pb-4 pt-1">
+          <Group label="Describe your brand">
+            <div className="flex items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1 focus-within:border-signal/60">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-signal" />
+              <input
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    submitPrompt();
+                  }
+                }}
+                placeholder="e.g. warm orange with rounded corners"
+                disabled={aiMut.isPending}
+                className="flex-1 bg-transparent py-1 text-xs outline-none placeholder:text-muted-foreground/60 disabled:opacity-50"
+              />
+              <button
+                onClick={submitPrompt}
+                disabled={aiMut.isPending || !prompt.trim()}
+                className="inline-flex h-6 items-center gap-1 rounded bg-signal px-2 text-[10px] font-medium uppercase tracking-wider text-signal-foreground transition-opacity disabled:opacity-40"
+              >
+                {aiMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+              </button>
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {["minimal black & ivory", "playful pink, pill corners", "fresh green with gradient"].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => { setPrompt(s); aiMut.mutate(s); }}
+                  disabled={aiMut.isPending}
+                  className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-signal/60 hover:text-foreground disabled:opacity-40"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </Group>
+
           <Group label="Palette">
             <div className="flex flex-wrap gap-2">
               {THEME_PRESETS.map((p) => {
