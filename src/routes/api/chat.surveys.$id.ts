@@ -31,6 +31,8 @@ Style guidelines for the surveys you build:
 - Tag every question with 1-2 short lowercase theme tags (e.g. "pricing", "onboarding", "nps", "feature-x") so themes roll up across surveys.
 - Keep titles plain-spoken, one sentence.
 
+You can also re-theme the survey on request via set_theme — pick a preset (coral, ink, forest, indigo, rose, solar) or a custom 6-digit hex accent; set background to solid/gradient/dots; font to sans/serif/mono/soft; radius to sharp/soft/pill. When the user mentions a brand color or a vibe ("warm", "minimal", "playful"), call set_theme.
+
 If the user asks an unrelated question, answer briefly without calling tools.`;
 
 const QuestionInput = z.object({
@@ -327,6 +329,39 @@ export const Route = createFileRoute("/api/chat/surveys/$id")({
                 if (!q) throw new Error(`No question at position ${position}`);
                 await ensureTagsForQuestion(q.id, tags);
                 return { ok: true, position, tags };
+              },
+            }),
+            set_theme: tool({
+              description:
+                "Update the survey's visual theme (palette, background, font, corner radius). Use a preset OR a custom hex accent.",
+              inputSchema: z.object({
+                preset: z.enum(["coral", "ink", "forest", "indigo", "rose", "solar"]).optional(),
+                accent: z.string().regex(/^#?[0-9a-fA-F]{6}$/).optional()
+                  .describe("Custom accent hex like #FF7A45 — overrides preset"),
+                background: z.enum(["solid", "gradient", "dots"]).optional(),
+                font: z.enum(["sans", "serif", "mono", "soft"]).optional(),
+                radius: z.enum(["sharp", "soft", "pill"]).optional(),
+              }),
+              execute: async (input) => {
+                const accent = input.accent
+                  ? input.accent.startsWith("#") ? input.accent : `#${input.accent}`
+                  : undefined;
+                const next: Record<string, unknown> = {};
+                if (input.preset) next.preset = input.preset;
+                if (accent) next.accent = accent;
+                if (input.background) next.background = input.background;
+                if (input.font) next.font = input.font;
+                if (input.radius) next.radius = input.radius;
+                if (Object.keys(next).length === 0) return { ok: true, changed: false };
+                // Merge with existing theme.
+                const { data: cur } = await supabase
+                  .from("surveys").select("theme").eq("id", surveyId).maybeSingle();
+                const merged = { ...(cur?.theme as Record<string, unknown> ?? {}), ...next };
+                // If the model set an explicit preset without an accent, drop the previous custom accent.
+                if (input.preset && !accent) delete (merged as Record<string, unknown>).accent;
+                const { error } = await supabase.from("surveys").update({ theme: merged }).eq("id", surveyId);
+                if (error) throw new Error(error.message);
+                return { ok: true, theme: merged };
               },
             }),
           },
