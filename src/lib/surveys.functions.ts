@@ -73,6 +73,7 @@ export const updateSurvey = createServerFn({ method: "POST" })
     status?: "draft" | "live" | "closed";
     welcome_screen?: { title: string; description: string; button: string };
     thank_you_screen?: { title: string; description: string };
+    theme?: Record<string, unknown>;
   }) =>
     z
       .object({
@@ -85,6 +86,15 @@ export const updateSurvey = createServerFn({ method: "POST" })
           .optional(),
         thank_you_screen: z
           .object({ title: z.string().max(120), description: z.string().max(500) })
+          .optional(),
+        theme: z
+          .object({
+            preset: z.string().max(40).optional(),
+            accent: z.string().regex(/^#?[0-9a-fA-F]{6}$/).optional(),
+            background: z.enum(["solid", "gradient", "dots"]).optional(),
+            font: z.enum(["sans", "serif", "mono", "soft"]).optional(),
+            radius: z.enum(["sharp", "soft", "pill"]).optional(),
+          })
           .optional(),
       })
       .parse(d),
