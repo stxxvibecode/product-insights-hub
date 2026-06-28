@@ -388,10 +388,7 @@ function ChatMessage({ message, showAvatar }: { message: UIMessage; showAvatar: 
   if (isUser) {
     return (
       <Message from="user">
-        <MessageContent
-          variant="contained"
-          className="ml-auto max-w-[85%] rounded-2xl bg-card text-foreground"
-        >
+        <MessageContent className="ml-auto max-w-[85%] rounded-2xl bg-card text-foreground">
           {message.parts.map((part, i) =>
             part.type === "text" ? (
               <MessageResponse key={i} isAnimating={false}>
@@ -411,10 +408,7 @@ function ChatMessage({ message, showAvatar }: { message: UIMessage; showAvatar: 
             <img src={agentMark} alt="" className="mt-0.5 h-7 w-7 rounded-md" />
           )}
         </div>
-        <MessageContent
-          variant="flat"
-          className="min-w-0 flex-1 p-0 text-foreground"
-        >
+        <MessageContent className="min-w-0 flex-1 bg-transparent p-0 text-foreground">
           <div className="space-y-2.5">
             {message.parts.map((part, i) => {
               if (part.type === "text") {
@@ -432,13 +426,7 @@ function ChatMessage({ message, showAvatar }: { message: UIMessage; showAvatar: 
                     <ToolHeader
                       type={p.type as `tool-${string}`}
                       state={p.state}
-                      title={
-                        <span className="inline-flex items-center gap-2">
-                          <ToolIcon name={p.type.replace(/^tool-/, "")} />
-                          {prettyToolName(p.type)}
-                          <ToolSummary name={p.type.replace(/^tool-/, "")} input={p.input} />
-                        </span>
-                      }
+                      title={prettyToolTitle(p.type, p.input)}
                     />
                     <ToolContent>
                       <ToolInput input={p.input} />
@@ -456,44 +444,20 @@ function ChatMessage({ message, showAvatar }: { message: UIMessage; showAvatar: 
   );
 }
 
-function ToolIcon({ name }: { name: string }) {
-  const cls = "h-3.5 w-3.5";
-  switch (name) {
-    case "add_question":
-      return <Plus className={cls} />;
-    case "remove_question":
-      return <Trash2 className={cls} />;
-    case "replace_all_questions":
-      return <RefreshCw className={cls} />;
-    case "tag_question":
-      return <Tag className={cls} />;
-    case "set_survey_meta":
-      return <Settings2 className={cls} />;
-    case "update_question":
-      return <Pencil className={cls} />;
-    default:
-      return <Sparkles className={cls} />;
-  }
-}
-
-function ToolSummary({ name, input }: { name: string; input: unknown }) {
+function prettyToolTitle(type: string, input: unknown): string {
+  const name = type.replace(/^tool-/, "");
+  const base = prettyToolName(type);
   const obj = (input ?? {}) as Record<string, unknown>;
-  const get = (k: string) =>
-    typeof obj[k] === "string" ? (obj[k] as string) : undefined;
-  let summary: string | undefined;
+  const get = (k: string) => (typeof obj[k] === "string" ? (obj[k] as string) : undefined);
+  let detail: string | undefined;
   if (name === "add_question" || name === "update_question") {
-    const t = get("title");
-    const type = get("type");
-    summary = [type, t].filter(Boolean).join(" · ");
+    detail = [get("type"), get("title")].filter(Boolean).join(" · ");
   } else if (name === "set_survey_meta") {
-    summary = get("title");
+    detail = get("title");
   } else if (name === "tag_question") {
-    summary = get("tag");
+    detail = get("tag");
   }
-  if (!summary) return null;
-  return (
-    <span className="truncate text-xs text-muted-foreground">· {summary}</span>
-  );
+  return detail ? `${base} · ${detail}` : base;
 }
 
 function EmptyChat({ onPick }: { onPick: (text: string) => void }) {
