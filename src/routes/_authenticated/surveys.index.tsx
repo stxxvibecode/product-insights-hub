@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
-import { Plus, ArrowUpRight, Loader2 } from "lucide-react";
+import { Plus, ArrowUpRight, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/surveys/")({
@@ -22,7 +22,7 @@ function SurveysIndex() {
   const [title, setTitle] = useState("");
 
   const create = useMutation({
-    mutationFn: (t: string) => createFn({ data: { title: t } }),
+    mutationFn: (t: string) => createFn({ data: { title: t || "Untitled survey" } }),
     onSuccess: (s) => {
       qc.invalidateQueries({ queryKey: ["surveys"] });
       navigate({ to: "/surveys/$id", params: { id: s.id } });
@@ -43,7 +43,7 @@ function SurveysIndex() {
             onClick={() => setCreating(true)}
             className="inline-flex items-center gap-2 rounded-full bg-signal px-4 py-2 text-sm font-medium text-signal-foreground transition-transform hover:-translate-y-0.5"
           >
-            <Plus className="h-4 w-4" /> New survey
+            <Sparkles className="h-4 w-4" /> New with AI
           </button>
         </div>
 
@@ -51,7 +51,7 @@ function SurveysIndex() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (title.trim()) create.mutate(title.trim());
+              create.mutate(title.trim());
             }}
             className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-4"
           >
@@ -59,14 +59,14 @@ function SurveysIndex() {
               autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Untitled survey — name it"
+              placeholder="Working title (you can describe the survey to the AI next)"
               className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60 focus:ring-2 focus:ring-signal/20"
             />
             <button
-              disabled={create.isPending || !title.trim()}
+              disabled={create.isPending}
               className="inline-flex items-center gap-2 rounded-lg bg-signal px-3 py-2 text-sm font-medium text-signal-foreground disabled:opacity-50"
             >
-              {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Create
+              {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Compose with AI
             </button>
             <button type="button" onClick={() => { setCreating(false); setTitle(""); }} className="text-xs text-muted-foreground hover:text-foreground">
               Cancel
