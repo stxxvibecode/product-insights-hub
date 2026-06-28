@@ -14,7 +14,286 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      answers: {
+        Row: {
+          created_at: string
+          id: string
+          question_id: string
+          response_id: string
+          value: Json
+          value_number: number | null
+          value_text: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          question_id: string
+          response_id: string
+          value?: Json
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          question_id?: string
+          response_id?: string
+          value?: Json
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answers_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "responses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      decision_notes: {
+        Row: {
+          body: string | null
+          created_at: string
+          evidence: Json
+          id: string
+          owner_id: string
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          evidence?: Json
+          id?: string
+          owner_id: string
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          evidence?: Json
+          id?: string
+          owner_id?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      question_tags: {
+        Row: {
+          question_id: string
+          tag_id: string
+        }
+        Insert: {
+          question_id: string
+          tag_id: string
+        }
+        Update: {
+          question_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_tags_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "question_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      questions: {
+        Row: {
+          config: Json
+          created_at: string
+          description: string | null
+          id: string
+          position: number
+          required: boolean
+          survey_id: string
+          title: string
+          type: Database["public"]["Enums"]["question_type"]
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          required?: boolean
+          survey_id: string
+          title?: string
+          type: Database["public"]["Enums"]["question_type"]
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          required?: boolean
+          survey_id?: string
+          title?: string
+          type?: Database["public"]["Enums"]["question_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questions_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      responses: {
+        Row: {
+          completed_at: string | null
+          id: string
+          referrer: string | null
+          respondent_token: string | null
+          started_at: string
+          survey_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          referrer?: string | null
+          respondent_token?: string | null
+          started_at?: string
+          survey_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          referrer?: string | null
+          respondent_token?: string | null
+          started_at?: string
+          survey_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "responses_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      surveys: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          owner_id: string
+          slug: string
+          status: Database["public"]["Enums"]["survey_status"]
+          thank_you_screen: Json
+          theme: Json
+          title: string
+          updated_at: string
+          welcome_screen: Json
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          owner_id: string
+          slug: string
+          status?: Database["public"]["Enums"]["survey_status"]
+          thank_you_screen?: Json
+          theme?: Json
+          title?: string
+          updated_at?: string
+          welcome_screen?: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          owner_id?: string
+          slug?: string
+          status?: Database["public"]["Enums"]["survey_status"]
+          thank_you_screen?: Json
+          theme?: Json
+          title?: string
+          updated_at?: string
+          welcome_screen?: Json
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +302,18 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      question_type:
+        | "short_text"
+        | "long_text"
+        | "email"
+        | "number"
+        | "single_choice"
+        | "multi_choice"
+        | "rating"
+        | "nps"
+        | "scale"
+        | "yes_no"
+      survey_status: "draft" | "live" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +440,20 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      question_type: [
+        "short_text",
+        "long_text",
+        "email",
+        "number",
+        "single_choice",
+        "multi_choice",
+        "rating",
+        "nps",
+        "scale",
+        "yes_no",
+      ],
+      survey_status: ["draft", "live", "closed"],
+    },
   },
 } as const
