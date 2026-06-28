@@ -1,0 +1,1 @@
+ALTER TABLE public.survey_chat_messages ADD COLUMN IF NOT EXISTS parts jsonb;

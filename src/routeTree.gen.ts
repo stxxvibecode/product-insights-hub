@@ -17,6 +17,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedSurveysIndexRouteImport } from './routes/_authenticated/surveys.index'
 import { Route as AuthenticatedSurveysIdRouteImport } from './routes/_authenticated/surveys.$id'
+import { Route as ApiChatSurveysIdRouteImport } from './routes/api/chat.surveys.$id'
 import { Route as AuthenticatedSurveysIdEditRouteImport } from './routes/_authenticated/surveys.$id.edit'
 
 const AuthRoute = AuthRouteImport.update({
@@ -59,6 +60,11 @@ const AuthenticatedSurveysIdRoute = AuthenticatedSurveysIdRouteImport.update({
   path: '/surveys/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiChatSurveysIdRoute = ApiChatSurveysIdRouteImport.update({
+  id: '/api/chat/surveys/$id',
+  path: '/api/chat/surveys/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSurveysIdEditRoute =
   AuthenticatedSurveysIdEditRouteImport.update({
     id: '/edit',
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/surveys/$id': typeof AuthenticatedSurveysIdRouteWithChildren
   '/surveys/': typeof AuthenticatedSurveysIndexRoute
   '/surveys/$id/edit': typeof AuthenticatedSurveysIdEditRoute
+  '/api/chat/surveys/$id': typeof ApiChatSurveysIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -85,6 +92,7 @@ export interface FileRoutesByTo {
   '/surveys/$id': typeof AuthenticatedSurveysIdRouteWithChildren
   '/surveys': typeof AuthenticatedSurveysIndexRoute
   '/surveys/$id/edit': typeof AuthenticatedSurveysIdEditRoute
+  '/api/chat/surveys/$id': typeof ApiChatSurveysIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/_authenticated/surveys/$id': typeof AuthenticatedSurveysIdRouteWithChildren
   '/_authenticated/surveys/': typeof AuthenticatedSurveysIndexRoute
   '/_authenticated/surveys/$id/edit': typeof AuthenticatedSurveysIdEditRoute
+  '/api/chat/surveys/$id': typeof ApiChatSurveysIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/surveys/$id'
     | '/surveys/'
     | '/surveys/$id/edit'
+    | '/api/chat/surveys/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/surveys/$id'
     | '/surveys'
     | '/surveys/$id/edit'
+    | '/api/chat/surveys/$id'
   id:
     | '__root__'
     | '/'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/_authenticated/surveys/$id'
     | '/_authenticated/surveys/'
     | '/_authenticated/surveys/$id/edit'
+    | '/api/chat/surveys/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -137,6 +149,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   SSlugRoute: typeof SSlugRoute
+  ApiChatSurveysIdRoute: typeof ApiChatSurveysIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -197,6 +210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSurveysIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/chat/surveys/$id': {
+      id: '/api/chat/surveys/$id'
+      path: '/api/chat/surveys/$id'
+      fullPath: '/api/chat/surveys/$id'
+      preLoaderRoute: typeof ApiChatSurveysIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/surveys/$id/edit': {
       id: '/_authenticated/surveys/$id/edit'
       path: '/edit'
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   SSlugRoute: SSlugRoute,
+  ApiChatSurveysIdRoute: ApiChatSurveysIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

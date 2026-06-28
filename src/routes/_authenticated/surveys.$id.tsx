@@ -1,404 +1,503 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AppShell } from "@/components/AppShell";
+import { getSurvey, updateSurvey } from "@/lib/surveys.functions";
+import { listSurveyChat } from "@/lib/survey-chat.functions";
+import { QuestionPreview } from "@/components/QuestionPreview";
+import type { QuestionType } from "@/lib/question-types";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  ArrowLeft, ArrowRight, Send, Sparkles, Loader2, Settings2, Share2, Copy, ExternalLink, Wand2,
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputTools,
+  PromptInputSubmit,
+} from "@/components/ai-elements/prompt-input";
+import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
+import { Shimmer } from "@/components/ai-elements/shimmer";
+import agentMark from "@/assets/agent-mark.png";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Pencil,
+  Sparkles,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { AppShell } from "@/components/AppShell";
-import { QuestionPreview } from "@/components/QuestionPreview";
-import { getSurvey, updateSurvey } from "@/lib/surveys.functions";
-import { generateSurvey, listSurveyChat } from "@/lib/ai-survey.functions";
-import { QUESTION_TYPE_META, type QuestionType } from "@/lib/question-types";
 
 export const Route = createFileRoute("/_authenticated/surveys/$id")({
   head: () => ({ meta: [{ title: "Compose — Insightform" }] }),
   component: SurveyComposer,
 });
 
-const EXAMPLES = [
-  "Post-onboarding NPS with 1 open follow-up",
-  "Pricing page feedback — why did you not upgrade?",
-  "Churn exit interview, 5 questions max",
-  "Feature request triage for power users",
+const STARTERS = [
+  "Post-purchase NPS for our SaaS, with two follow-ups on pricing and onboarding.",
+  "Pulse on the new dashboard redesign — measure clarity, speed, and usefulness.",
+  "Win/loss survey for prospects who didn't convert in the last 30 days.",
+  "5-question feature prioritization survey for our top 50 customers.",
 ];
+
+type ToolPart = {
+  type: `tool-${string}`;
+  toolCallId: string;
+  state: "input-streaming" | "input-available" | "output-available" | "output-error";
+  input?: unknown;
+  output?: unknown;
+  errorText?: string;
+};
 
 function SurveyComposer() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const fetchSurvey = useServerFn(getSurvey);
   const fetchChat = useServerFn(listSurveyChat);
-  const generate = useServerFn(generateSurvey);
   const updateSurveyFn = useServerFn(updateSurvey);
 
-  const { data: survey } = useQuery({ queryKey: ["survey", id], queryFn: () => fetchSurvey({ data: { id } }) });
-  const { data: chat } = useQuery({ queryKey: ["survey-chat", id], queryFn: () => fetchChat({ data: { survey_id: id } }) });
-
-  const [prompt, setPrompt] = useState("");
-  const [pendingUser, setPendingUser] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const gen = useMutation({
-    mutationFn: (p: string) => generate({ data: { survey_id: id, prompt: p } }),
-    onMutate: (p) => setPendingUser(p),
-    onSettled: () => setPendingUser(null),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["survey-chat", id] });
-      qc.invalidateQueries({ queryKey: ["survey", id] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "AI failed"),
+  const surveyQ = useQuery({
+    queryKey: ["survey", id],
+    queryFn: () => fetchSurvey({ data: { id } }),
   });
 
+  const chatQ = useQuery({
+    queryKey: ["survey-chat", id],
+    queryFn: () => fetchChat({ data: { survey_id: id } }),
+  });
+
+  const initialMessages = useMemo<UIMessage[]>(() => {
+    if (!chatQ.data) return [];
+    return chatQ.data.map((m) => ({
+      id: m.id,
+      role: m.role,
+      parts: (m.parts as unknown as UIMessage["parts"]) ?? [],
+    }));
+  }, [chatQ.data]);
+
+  const [authToken, setAuthToken] = useState<string | null>(null);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [chat?.length, pendingUser, gen.isPending]);
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setAuthToken(data.session?.access_token ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAuthToken(session?.access_token ?? null);
+    });
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
-  const submit = () => {
-    const p = prompt.trim();
-    if (!p || gen.isPending) return;
-    setPrompt("");
-    gen.mutate(p);
-  };
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: `/api/chat/surveys/${id}`,
+        headers: (): Record<string, string> =>
+          authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      }),
+    [id, authToken],
+  );
 
-  const questions = survey?.questions ?? [];
-  const hasMessages = (chat?.length ?? 0) > 0 || gen.isPending || !!pendingUser;
-  const isLive = survey?.survey.status === "live";
+  const { messages, sendMessage, status, setMessages, error } = useChat({
+    id: `survey:${id}`,
+    transport,
+    onError: (e) => toast.error(e.message || "Something went wrong"),
+  });
+
+  // Hydrate from server on first chat-load (or refresh).
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!hydratedRef.current && initialMessages.length > 0 && messages.length === 0) {
+      setMessages(initialMessages);
+      hydratedRef.current = true;
+    }
+    if (chatQ.isFetched) hydratedRef.current = true;
+  }, [initialMessages, messages.length, setMessages, chatQ.isFetched]);
+
+  // Re-pull the survey whenever a tool finishes (live preview).
+  const lastToolSig = useRef<string>("");
+  useEffect(() => {
+    const sig = messages
+      .flatMap((m) => m.parts)
+      .map((p) => {
+        const anyP = p as unknown as { type?: string; toolCallId?: string; state?: string };
+        if (typeof anyP.type === "string" && anyP.type.startsWith("tool-")) {
+          return `${anyP.toolCallId}:${anyP.state}`;
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("|");
+    if (sig !== lastToolSig.current) {
+      lastToolSig.current = sig;
+      qc.invalidateQueries({ queryKey: ["survey", id] });
+    }
+  }, [messages, qc, id]);
+
+  // Title editing.
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  useEffect(() => {
+    if (surveyQ.data?.survey.title) setTitleDraft(surveyQ.data.survey.title);
+  }, [surveyQ.data?.survey.title]);
+
+  async function saveTitle() {
+    if (!titleDraft.trim() || titleDraft === surveyQ.data?.survey.title) {
+      setEditingTitle(false);
+      return;
+    }
+    await updateSurveyFn({ data: { id, title: titleDraft.trim() } });
+    qc.invalidateQueries({ queryKey: ["survey", id] });
+    setEditingTitle(false);
+  }
+
+  async function publish() {
+    await updateSurveyFn({ data: { id, status: "live" } });
+    qc.invalidateQueries({ queryKey: ["survey", id] });
+    toast.success("Survey is live");
+  }
+
+  const survey = surveyQ.data?.survey;
+  const questions = surveyQ.data?.questions ?? [];
 
   return (
     <AppShell>
-      <div className="grid h-[calc(100vh-0px)] grid-cols-1 lg:grid-cols-[minmax(380px,42%)_1fr]">
-        {/* Chat pane */}
-        <div className="flex h-screen flex-col border-r border-border">
-          <div className="flex items-center gap-3 border-b border-border px-5 py-3">
-            <Link to="/surveys" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-3.5 w-3.5" /> Surveys
-            </Link>
-            <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-signal" /> AI composer
+      <div className="flex h-[calc(100vh-1px)] flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              onClick={() => navigate({ to: "/surveys" })}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-card hover:text-foreground"
+              aria-label="Back to surveys"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-0">
+              {editingTitle ? (
+                <input
+                  autoFocus
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={saveTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveTitle();
+                    if (e.key === "Escape") setEditingTitle(false);
+                  }}
+                  className="w-[28ch] max-w-full rounded-md border border-input bg-background px-2 py-1 font-display text-base outline-none focus:border-signal/60"
+                />
+              ) : (
+                <button
+                  onClick={() => setEditingTitle(true)}
+                  className="group flex items-center gap-1.5 font-display text-base font-semibold tracking-tight"
+                >
+                  <span className="truncate">{survey?.title ?? "Untitled survey"}</span>
+                  <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                </button>
+              )}
+              <div className="mt-0.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      survey?.status === "live"
+                        ? "bg-emerald-400"
+                        : survey?.status === "closed"
+                        ? "bg-rose-400"
+                        : "bg-muted-foreground"
+                    }`}
+                  />
+                  {survey?.status ?? "draft"}
+                </span>
+                <span>·</span>
+                <span>{questions.length} questions</span>
+              </div>
             </div>
           </div>
-
-          {!hasMessages ? (
-            <EmptyComposer prompt={prompt} setPrompt={setPrompt} submit={submit} pending={gen.isPending} />
-          ) : (
-            <>
-              <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6">
-                <div className="mx-auto max-w-xl space-y-5">
-                  {chat?.map((m) => <ChatMessage key={m.id} role={m.role} content={m.content} tool={m.tool_payload as ToolPayload | null} />)}
-                  {pendingUser && <ChatMessage role="user" content={pendingUser} tool={null} />}
-                  {gen.isPending && <ThinkingBubble />}
-                </div>
-              </div>
-              <Composer prompt={prompt} setPrompt={setPrompt} submit={submit} pending={gen.isPending} />
-            </>
-          )}
-        </div>
-
-        {/* Preview pane */}
-        <div className="flex h-screen flex-col bg-card/30">
-          <div className="flex items-center gap-3 border-b border-border px-5 py-3">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{survey?.survey.title ?? "New survey"}</div>
-              <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                {questions.length} {questions.length === 1 ? "question" : "questions"}
-                {survey?.survey.description ? ` · ${survey.survey.description}` : ""}
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                if (!survey) return;
-                updateSurveyFn({ data: { id, status: isLive ? "draft" : "live" } }).then(() => {
-                  qc.invalidateQueries({ queryKey: ["survey", id] });
-                  toast.success(isLive ? "Set to draft" : "Survey is live");
-                });
-              }}
-              disabled={!questions.length}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${isLive ? "border border-border text-foreground" : "bg-signal text-signal-foreground"}`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "bg-emerald-400" : "bg-signal-foreground/60"}`} />
-              {isLive ? "Live" : "Publish"}
-            </button>
+          <div className="flex items-center gap-2">
             <Link
               to="/surveys/$id/edit"
               params={{ id }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
             >
-              <Settings2 className="h-3.5 w-3.5" /> Builder
+              <Wand2 className="h-3.5 w-3.5" /> Advanced
             </Link>
+            {survey?.slug && (
+              <a
+                href={`/s/${survey.slug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Open
+              </a>
+            )}
+            {survey?.status !== "live" ? (
+              <button
+                onClick={publish}
+                className="inline-flex items-center gap-1.5 rounded-md bg-signal px-3 py-1.5 text-xs font-medium text-signal-foreground"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Publish
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Split */}
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          {/* Chat pane */}
+          <div className="flex min-h-0 flex-col border-r border-border bg-background/60">
+            <Conversation className="flex-1">
+              <ConversationContent className="mx-auto w-full max-w-2xl">
+                {messages.length === 0 ? (
+                  <ConversationEmptyState
+                    className="h-full"
+                    icon={
+                      <img
+                        src={agentMark}
+                        alt="Insightform agent"
+                        className="h-12 w-12 rounded-xl"
+                      />
+                    }
+                    title="Describe the survey you need"
+                    description="The agent will draft, refine, and tag questions in real time. The preview on the right updates as it works."
+                  >
+                    <img src={agentMark} alt="" className="h-12 w-12 rounded-xl" />
+                    <div className="space-y-1">
+                      <h3 className="font-display text-lg font-medium">Compose with AI</h3>
+                      <p className="max-w-sm text-sm text-muted-foreground">
+                        Describe what you want to learn. The agent drafts Typeform-style questions and tags them so insights roll up across every survey.
+                      </p>
+                    </div>
+                    <div className="mt-4 grid w-full max-w-xl gap-2 text-left">
+                      {STARTERS.map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => sendMessage({ text: s })}
+                          className="group rounded-xl border border-border bg-card/60 px-4 py-3 text-sm text-foreground transition-colors hover:border-signal/40 hover:bg-card"
+                        >
+                          <span className="text-muted-foreground transition-colors group-hover:text-foreground">
+                            {s}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </ConversationEmptyState>
+                ) : (
+                  messages.map((m) => <ChatMessage key={m.id} message={m} />)
+                )}
+                {status === "submitted" && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <img src={agentMark} alt="" className="h-5 w-5 rounded-md" />
+                    <Shimmer>Thinking…</Shimmer>
+                  </div>
+                )}
+                {error && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    {error.message}
+                  </div>
+                )}
+              </ConversationContent>
+              <ConversationScrollButton />
+            </Conversation>
+
+            <div className="mx-auto w-full max-w-2xl px-4 pb-4">
+              <PromptInput
+                onSubmit={async (msg) => {
+                  const text = msg.text?.trim();
+                  if (!text) return;
+                  await sendMessage({ text });
+                }}
+              >
+                <PromptInputBody>
+                  <PromptInputTextarea placeholder="Describe the survey, or ask the agent to tweak a question…" />
+                  <PromptInputFooter>
+                    <PromptInputTools>
+                      <span className="px-2 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                        Shift + Enter for newline
+                      </span>
+                    </PromptInputTools>
+                    <PromptInputSubmit status={status} />
+                  </PromptInputFooter>
+                </PromptInputBody>
+              </PromptInput>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-10">
-            <PreviewStage questions={questions} slug={survey?.survey.slug} />
-          </div>
+          {/* Preview pane */}
+          <PreviewPane
+            title={survey?.title ?? ""}
+            questions={questions.map((q) => ({
+              id: q.id,
+              type: q.type as QuestionType,
+              title: q.title,
+              description: q.description,
+              required: q.required,
+              config: (q.config ?? {}) as Record<string, unknown>,
+            }))}
+          />
         </div>
       </div>
     </AppShell>
   );
 }
 
-type ToolPayload = {
-  title?: string;
-  question_count?: number;
-  types?: string[];
-  tags?: string[];
-} | null;
-
-function ChatMessage({ role, content, tool }: { role: string; content: string; tool: ToolPayload }) {
-  if (role === "user") {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
-          {content}
-        </div>
-      </div>
-    );
-  }
-  if (role === "system") return null;
+function ChatMessage({ message }: { message: UIMessage }) {
+  const isUser = message.role === "user";
   return (
-    <div className="flex gap-3">
-      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-signal/15 ring-1 ring-signal/30">
-        <Sparkles className="h-3.5 w-3.5 text-signal" />
+    <Message from={message.role}>
+      <div className="flex items-start gap-3">
+        {!isUser && (
+          <img src={agentMark} alt="" className="mt-1 h-7 w-7 shrink-0 rounded-md" />
+        )}
+        <MessageContent>
+          {message.parts.map((part, i) => {
+            if (part.type === "text") {
+              return (
+                <MessageResponse key={i} isAnimating={false}>
+                  {part.text}
+                </MessageResponse>
+              );
+            }
+            if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+              const p = part as unknown as ToolPart;
+              return (
+                <Tool key={p.toolCallId} defaultOpen={p.state === "output-error"}>
+                  <ToolHeader
+                    type={p.type as `tool-${string}`}
+                    state={p.state}
+                    title={prettyToolName(p.type)}
+                  />
+                  <ToolContent>
+                    <ToolInput input={p.input} />
+                    <ToolOutput output={p.output} errorText={p.errorText} />
+                  </ToolContent>
+                </Tool>
+              );
+            }
+            return null;
+          })}
+        </MessageContent>
       </div>
-      <div className="min-w-0 flex-1 space-y-2">
-        <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">{content}</div>
-        {tool && (
-          <details className="group rounded-xl border border-border bg-card/60">
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-              <Wand2 className="h-3.5 w-3.5 text-signal" />
-              <span>
-                Generated {tool.question_count} {tool.question_count === 1 ? "question" : "questions"}
-                {tool.tags?.length ? ` · ${tool.tags.length} ${tool.tags.length === 1 ? "tag" : "tags"}` : ""}
-              </span>
-              <span className="ml-auto text-muted-foreground/60 group-open:rotate-90 transition-transform">›</span>
-            </summary>
-            <div className="space-y-1.5 border-t border-border px-3 py-2.5 text-xs">
-              {tool.types?.map((t, i) => (
-                <div key={i} className="flex items-center gap-2 text-muted-foreground">
-                  <span className="font-mono text-[10px] text-muted-foreground/70">{String(i + 1).padStart(2, "0")}</span>
-                  <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground/80">
-                    {QUESTION_TYPE_META[t as QuestionType]?.label ?? t}
-                  </span>
-                </div>
-              ))}
-              {tool.tags?.length ? (
-                <div className="mt-2 flex flex-wrap gap-1.5 pt-2 border-t border-border">
-                  {tool.tags.map((t) => (
-                    <span key={t} className="rounded-full bg-signal/10 px-2 py-0.5 text-[10px] text-signal">#{t}</span>
-                  ))}
-                </div>
-              ) : null}
+    </Message>
+  );
+}
+
+function prettyToolName(type: string) {
+  const raw = type.replace(/^tool-/, "");
+  const map: Record<string, string> = {
+    add_question: "Adding question",
+    update_question: "Updating question",
+    remove_question: "Removing question",
+    replace_all_questions: "Rebuilding survey",
+    tag_question: "Tagging question",
+    set_survey_meta: "Setting survey title",
+  };
+  return map[raw] ?? raw.replaceAll("_", " ");
+}
+
+type PreviewQ = {
+  id: string;
+  type: QuestionType;
+  title: string;
+  description: string | null;
+  required: boolean;
+  config: Record<string, unknown>;
+};
+
+function PreviewPane({ title, questions }: { title: string; questions: PreviewQ[] }) {
+  const [idx, setIdx] = useState(0);
+  const [value, setValue] = useState<unknown>(null);
+
+  // If questions list shrinks/grows, keep idx in range.
+  useEffect(() => {
+    if (idx > questions.length - 1) setIdx(Math.max(0, questions.length - 1));
+  }, [questions.length, idx]);
+
+  // Reset answer whenever the visible question changes.
+  useEffect(() => {
+    setValue(null);
+  }, [questions[idx]?.id]);
+
+  const q = questions[idx];
+
+  return (
+    <div className="flex min-h-0 flex-col bg-[radial-gradient(circle_at_80%_-10%,rgba(255,122,69,0.10),transparent_55%)]">
+      <div className="flex items-center justify-between border-b border-border px-6 py-3 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+        <span>Live preview</span>
+        {questions.length > 0 && (
+          <span className="font-mono">
+            {idx + 1} / {questions.length}
+          </span>
+        )}
+      </div>
+      <div className="relative flex-1 overflow-hidden">
+        {questions.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+            <div className="h-12 w-12 rounded-2xl border border-dashed border-border" />
+            <h3 className="mt-4 font-display text-xl font-semibold">No questions yet</h3>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+              Describe what you want to learn in the chat — questions will appear here as the agent drafts them.
+            </p>
+          </div>
+        ) : (
+          <div className="mx-auto flex h-full max-w-2xl flex-col px-8 py-12">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+            <div className="mt-6 flex-1">
+              {q && (
+                <QuestionPreview
+                  key={q.id}
+                  type={q.type}
+                  title={q.title}
+                  description={q.description}
+                  required={q.required}
+                  config={q.config}
+                  value={value}
+                  onChange={setValue}
+                />
+              )}
             </div>
-          </details>
+            <div className="mt-8 flex items-center justify-between">
+              <button
+                onClick={() => setIdx((i) => Math.max(0, i - 1))}
+                disabled={idx === 0}
+                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground disabled:opacity-40 hover:text-foreground"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Prev
+              </button>
+              <div className="font-mono text-[11px] text-muted-foreground">
+                press <kbd className="rounded border border-border px-1.5 py-0.5">→</kbd> to continue
+              </div>
+              <button
+                onClick={() => setIdx((i) => Math.min(questions.length - 1, i + 1))}
+                disabled={idx >= questions.length - 1}
+                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground disabled:opacity-40 hover:text-foreground"
+              >
+                Next <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
-  );
-}
-
-function ThinkingBubble() {
-  return (
-    <div className="flex gap-3">
-      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-signal/15 ring-1 ring-signal/30">
-        <Sparkles className="h-3.5 w-3.5 animate-pulse text-signal" />
-      </div>
-      <div className="flex items-center gap-1 pt-2">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:200ms]" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:400ms]" />
-        <span className="ml-2 text-xs text-muted-foreground">Drafting your survey…</span>
-      </div>
-    </div>
-  );
-}
-
-function EmptyComposer({ prompt, setPrompt, submit, pending }: { prompt: string; setPrompt: (s: string) => void; submit: () => void; pending: boolean }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 py-10">
-      <div className="w-full max-w-md">
-        <div className="text-center">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-signal/15 ring-1 ring-signal/30">
-            <Sparkles className="h-5 w-5 text-signal" />
-          </div>
-          <h1 className="mt-5 font-display text-3xl font-semibold leading-tight tracking-tight text-balance">
-            Describe the survey<br />you want to run.
-          </h1>
-          <p className="mt-3 text-sm text-muted-foreground text-pretty">
-            One sentence is enough. The AI drafts a Typeform-style survey and tags each question for your source-of-truth dashboard.
-          </p>
-        </div>
-
-        <form
-          onSubmit={(e) => { e.preventDefault(); submit(); }}
-          className="mt-7 rounded-2xl border border-border bg-card p-3 shadow-2xl shadow-black/30 focus-within:border-signal/60"
-        >
-          <textarea
-            autoFocus
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-            rows={3}
-            placeholder="e.g. NPS for users 30 days after onboarding, with one open follow-up tagged 'nps'."
-            className="w-full resize-none bg-transparent px-2 pt-1 text-sm outline-none placeholder:text-muted-foreground/60"
-          />
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Enter to send · Shift+Enter newline
-            </span>
-            <button
-              type="submit"
-              disabled={!prompt.trim() || pending}
-              className="inline-flex items-center gap-1.5 rounded-full bg-signal px-3 py-1.5 text-xs font-medium text-signal-foreground disabled:opacity-40"
-            >
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              Generate
-            </button>
-          </div>
-        </form>
-
-        <div className="mt-5 flex flex-wrap justify-center gap-1.5">
-          {EXAMPLES.map((ex) => (
-            <button
-              key={ex}
-              onClick={() => setPrompt(ex)}
-              className="rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-signal/40 hover:text-foreground"
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Composer({ prompt, setPrompt, submit, pending }: { prompt: string; setPrompt: (s: string) => void; submit: () => void; pending: boolean }) {
-  return (
-    <div className="border-t border-border bg-background/80 px-5 py-3 backdrop-blur">
-      <form
-        onSubmit={(e) => { e.preventDefault(); submit(); }}
-        className="mx-auto flex max-w-xl items-end gap-2 rounded-2xl border border-border bg-card p-2 focus-within:border-signal/60"
-      >
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-          rows={1}
-          placeholder="Ask the AI to edit the survey…"
-          className="min-h-[36px] max-h-32 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground/60"
-        />
-        <button
-          type="submit"
-          disabled={!prompt.trim() || pending}
-          aria-label="Send"
-          className="grid h-8 w-8 place-items-center rounded-full bg-signal text-signal-foreground disabled:opacity-40"
-        >
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-function PreviewStage({ questions, slug }: { questions: Awaited<ReturnType<typeof getSurvey>>["questions"]; slug?: string }) {
-  const [index, setIndex] = useState(0);
-  useEffect(() => { if (index >= questions.length) setIndex(Math.max(0, questions.length - 1)); }, [questions.length, index]);
-
-  const current = questions[index];
-  const total = questions.length;
-
-  if (!total) {
-    return (
-      <div className="mx-auto grid h-full max-w-xl place-items-center">
-        <div className="rounded-3xl border border-dashed border-border p-12 text-center">
-          <div className="mx-auto h-10 w-10 rounded-xl bg-signal/15 ring-1 ring-signal/30" />
-          <h2 className="mt-4 font-display text-xl font-semibold">Your survey appears here</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Send a prompt on the left. Each question renders one at a time, exactly like respondents will see it.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto flex h-full max-w-xl flex-col">
-      <div className="flex items-center gap-3">
-        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-          Question {index + 1} of {total}
-        </div>
-        <div className="h-[2px] flex-1 overflow-hidden rounded-full bg-secondary">
-          <motion.div
-            initial={false}
-            animate={{ width: `${((index + 1) / total) * 100}%` }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="h-full bg-signal"
-          />
-        </div>
-        {slug && (
-          <Link
-            to="/s/$slug" params={{ slug }} target="_blank"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-          >
-            <ExternalLink className="h-3 w-3" /> Open
-          </Link>
-        )}
-      </div>
-
-      <div className="mt-8 flex-1">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={current.id}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
-          >
-            <QuestionPreview
-              type={current.type as QuestionType}
-              title={current.title}
-              description={current.description}
-              required={current.required}
-              config={(current.config ?? {}) as never}
-              value={undefined}
-              onChange={() => {}}
-            />
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      <div className="mt-6 flex items-center justify-between">
-        <button
-          onClick={() => setIndex((i) => Math.max(0, i - 1))}
-          disabled={index === 0}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground disabled:opacity-40 hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Prev
-        </button>
-        <ShareLink slug={slug} />
-        <button
-          onClick={() => setIndex((i) => Math.min(total - 1, i + 1))}
-          disabled={index >= total - 1}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground disabled:opacity-40 hover:text-foreground"
-        >
-          Next <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ShareLink({ slug }: { slug?: string }) {
-  const url = useMemo(() => (slug && typeof window !== "undefined" ? `${window.location.origin}/s/${slug}` : ""), [slug]);
-  if (!slug) return <span />;
-  return (
-    <button
-      onClick={() => { navigator.clipboard.writeText(url); toast.success("Link copied"); }}
-      className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs text-foreground/80 hover:text-foreground"
-    >
-      <Share2 className="h-3.5 w-3.5" /> Share
-      <Copy className="h-3 w-3 text-muted-foreground" />
-    </button>
   );
 }
