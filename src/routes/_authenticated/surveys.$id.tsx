@@ -47,6 +47,9 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/surveys/$id")({
   head: () => ({ meta: [{ title: "Compose — Insightform" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    prompt: typeof s.prompt === "string" ? s.prompt : undefined,
+  }),
   component: SurveyComposer,
 });
 
@@ -68,6 +71,7 @@ type ToolPart = {
 
 function SurveyComposer() {
   const { id } = Route.useParams();
+  const { prompt: seedPrompt } = Route.useSearch();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const fetchSurvey = useServerFn(getSurvey);
@@ -123,6 +127,23 @@ function SurveyComposer() {
     transport,
     onError: (e) => toast.error(e.message || "Something went wrong"),
   });
+
+  // Auto-send a seed prompt coming from the surveys index.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    if (!seedPrompt || !authToken) return;
+    if (!chatQ.isFetched) return; // wait for history check
+    if (initialMessages.length > 0) {
+      // chat already exists; just clear the param
+      seededRef.current = true;
+      navigate({ to: "/surveys/$id", params: { id }, search: {}, replace: true });
+      return;
+    }
+    seededRef.current = true;
+    void sendMessage({ text: seedPrompt });
+    navigate({ to: "/surveys/$id", params: { id }, search: {}, replace: true });
+  }, [seedPrompt, authToken, chatQ.isFetched, initialMessages.length, sendMessage, navigate, id]);
 
   // Hydrate from server on first chat-load (or refresh).
   const hydratedRef = useRef(false);
