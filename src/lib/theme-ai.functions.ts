@@ -33,13 +33,13 @@ export const generateTheme = createServerFn({ method: "POST" })
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
     const gateway = createLovableAiGatewayProvider(key);
-    const { experimental_output } = await generateText({
+    const { output } = await generateText({
       model: gateway("google/gemini-3-flash-preview"),
-      experimental_output: Output.object({ schema: ThemeSchema }),
+      output: Output.object({ schema: ThemeSchema }),
       system: SYSTEM,
       prompt: data.prompt,
     });
-    const theme = experimental_output as z.infer<typeof ThemeSchema>;
+    const theme = output as z.infer<typeof ThemeSchema>;
     if (theme.accent && !theme.accent.startsWith("#")) theme.accent = `#${theme.accent}`;
     return theme;
   });
