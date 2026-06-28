@@ -228,6 +228,41 @@ export type Database = {
           },
         ]
       }
+      survey_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          survey_id: string
+          tool_payload: Json | null
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          role: string
+          survey_id: string
+          tool_payload?: Json | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          survey_id?: string
+          tool_payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_chat_messages_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       surveys: {
         Row: {
           created_at: string
