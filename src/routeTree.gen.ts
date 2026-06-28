@@ -16,7 +16,7 @@ import { Route as SSlugRouteImport } from './routes/s.$slug'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedSurveysIndexRouteImport } from './routes/_authenticated/surveys.index'
-import { Route as AuthenticatedSurveysIdRouteImport } from './routes/_authenticated/surveys.$id'
+import { Route as AuthenticatedSurveysIdEditRouteImport } from './routes/_authenticated/surveys.$id.edit'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -53,11 +53,12 @@ const AuthenticatedSurveysIndexRoute =
     path: '/surveys/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedSurveysIdRoute = AuthenticatedSurveysIdRouteImport.update({
-  id: '/surveys/$id',
-  path: '/surveys/$id',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
+const AuthenticatedSurveysIdEditRoute =
+  AuthenticatedSurveysIdEditRouteImport.update({
+    id: '/surveys/$id/edit',
+    path: '/surveys/$id/edit',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -65,8 +66,8 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/s/$slug': typeof SSlugRoute
-  '/surveys/$id': typeof AuthenticatedSurveysIdRoute
   '/surveys/': typeof AuthenticatedSurveysIndexRoute
+  '/surveys/$id/edit': typeof AuthenticatedSurveysIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -74,8 +75,8 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/s/$slug': typeof SSlugRoute
-  '/surveys/$id': typeof AuthenticatedSurveysIdRoute
   '/surveys': typeof AuthenticatedSurveysIndexRoute
+  '/surveys/$id/edit': typeof AuthenticatedSurveysIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,8 +86,8 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/s/$slug': typeof SSlugRoute
-  '/_authenticated/surveys/$id': typeof AuthenticatedSurveysIdRoute
   '/_authenticated/surveys/': typeof AuthenticatedSurveysIndexRoute
+  '/_authenticated/surveys/$id/edit': typeof AuthenticatedSurveysIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -96,8 +97,8 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/settings'
     | '/s/$slug'
-    | '/surveys/$id'
     | '/surveys/'
+    | '/surveys/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -105,8 +106,8 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/settings'
     | '/s/$slug'
-    | '/surveys/$id'
     | '/surveys'
+    | '/surveys/$id/edit'
   id:
     | '__root__'
     | '/'
@@ -115,8 +116,8 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/settings'
     | '/s/$slug'
-    | '/_authenticated/surveys/$id'
     | '/_authenticated/surveys/'
+    | '/_authenticated/surveys/$id/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -177,11 +178,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSurveysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/surveys/$id': {
-      id: '/_authenticated/surveys/$id'
-      path: '/surveys/$id'
-      fullPath: '/surveys/$id'
-      preLoaderRoute: typeof AuthenticatedSurveysIdRouteImport
+    '/_authenticated/surveys/$id/edit': {
+      id: '/_authenticated/surveys/$id/edit'
+      path: '/surveys/$id/edit'
+      fullPath: '/surveys/$id/edit'
+      preLoaderRoute: typeof AuthenticatedSurveysIdEditRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
   }
@@ -190,15 +191,15 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
-  AuthenticatedSurveysIdRoute: typeof AuthenticatedSurveysIdRoute
   AuthenticatedSurveysIndexRoute: typeof AuthenticatedSurveysIndexRoute
+  AuthenticatedSurveysIdEditRoute: typeof AuthenticatedSurveysIdEditRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
-  AuthenticatedSurveysIdRoute: AuthenticatedSurveysIdRoute,
   AuthenticatedSurveysIndexRoute: AuthenticatedSurveysIndexRoute,
+  AuthenticatedSurveysIdEditRoute: AuthenticatedSurveysIdEditRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
