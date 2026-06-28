@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowUpRight, Activity, TrendingUp, Sparkles, Tag } from "lucide-react";
+import { ArrowUpRight, Activity, TrendingUp, Sparkles, Tag, Send } from "lucide-react";
 import { motion } from "motion/react";
 import { Logo } from "@/components/Logo";
 
@@ -45,25 +45,25 @@ function Landing() {
               <span className="h-1.5 w-1.5 rounded-full bg-signal" /> Built for product teams
             </div>
             <h1 className="mt-5 font-display text-5xl font-semibold leading-[1.02] tracking-tight text-balance md:text-6xl lg:text-7xl">
-              Ask better. <span className="text-signal">Decide</span> from the signal,<br className="hidden md:inline" /> not the vibes.
+              Describe a survey. <span className="text-signal">Ship it</span><br className="hidden md:inline" /> in 30 seconds.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-              Beautiful one-question-at-a-time surveys plus a single bird's-eye dashboard that aggregates every response into your product's source of truth.
+              Tell the AI what you want to learn. It drafts a Typeform-grade survey, tags every question, and folds responses into one source-of-truth dashboard for your product team.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link to="/auth" className="group inline-flex items-center gap-2 rounded-full bg-signal px-5 py-2.5 text-sm font-medium text-signal-foreground transition-transform hover:-translate-y-0.5">
-                Start collecting <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                Compose with AI <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </Link>
               <a href="#truth" className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm text-muted-foreground hover:text-foreground">
                 See the dashboard
               </a>
             </div>
             <div className="mt-10 flex items-center gap-6 font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              <span>Prompt → survey</span>
+              <span className="text-border">/</span>
               <span>One question at a time</span>
               <span className="text-border">/</span>
-              <span>Tag &amp; aggregate</span>
-              <span className="text-border">/</span>
-              <span>Decide</span>
+              <span>Source of truth</span>
             </div>
           </div>
 
@@ -72,15 +72,18 @@ function Landing() {
             className="relative">
             <div className="absolute -inset-6 rounded-3xl bg-signal/10 blur-2xl" aria-hidden />
             <div className="relative rounded-2xl border border-border bg-card p-7 shadow-2xl shadow-black/40">
-              <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-                <span>Question 3 of 6</span>
-                <span className="text-signal">live</span>
+              <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
+                <Sparkles className="h-3 w-3 text-signal" /> AI composer
               </div>
-              <div className="mt-1 h-[2px] w-full overflow-hidden rounded-full bg-secondary">
-                <motion.div initial={{ width: 0 }} animate={{ width: "50%" }} transition={{ duration: 0.9, delay: 0.2 }} className="h-full bg-signal" />
+              <div className="mt-3 rounded-xl border border-border bg-background/60 px-3 py-2.5 text-sm text-foreground/90">
+                Post-onboarding NPS with one open follow-up, tagged "onboarding".
               </div>
-              <div className="mt-7 text-xs font-mono text-signal">03 →</div>
-              <h3 className="mt-3 font-display text-2xl font-medium leading-snug text-foreground">
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <motion.span initial={{ opacity: 0.3 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, repeat: Infinity, repeatType: "reverse" }} className="h-1.5 w-1.5 rounded-full bg-signal" />
+                Drafted 4 questions · tagged onboarding
+              </div>
+              <div className="mt-5 border-t border-border pt-5 text-xs font-mono text-signal">01 →</div>
+              <h3 className="mt-2 font-display text-2xl font-medium leading-snug text-foreground">
                 How likely are you to recommend us to a friend?
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">0 — not at all · 10 — extremely</p>
@@ -93,8 +96,8 @@ function Landing() {
                 ))}
               </div>
               <div className="mt-6 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Press <kbd className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd> to continue</span>
-                <span className="font-mono">~ 12s avg</span>
+                <span className="inline-flex items-center gap-1.5"><Send className="h-3 w-3" /> Iterate by chatting</span>
+                <span className="font-mono">~ 30s to publish</span>
               </div>
             </div>
           </motion.div>
