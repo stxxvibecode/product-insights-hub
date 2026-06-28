@@ -40,11 +40,6 @@ import {
   Pencil,
   Sparkles,
   Wand2,
-  Plus,
-  Trash2,
-  RefreshCw,
-  Tag,
-  Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 
