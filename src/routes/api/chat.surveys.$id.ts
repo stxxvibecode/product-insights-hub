@@ -191,7 +191,7 @@ export const Route = createFileRoute("/api/chat/surveys/$id")({
                 description: z.string().max(300).optional(),
               }),
               execute: async ({ title, description }) => {
-                const patch: Record<string, unknown> = {};
+                const patch: { title?: string; description?: string | null } = {};
                 if (title !== undefined) patch.title = title;
                 if (description !== undefined) patch.description = description;
                 if (Object.keys(patch).length === 0) return { ok: true, changed: false };
@@ -263,12 +263,18 @@ export const Route = createFileRoute("/api/chat/surveys/$id")({
                   .eq("position", args.position)
                   .maybeSingle();
                 if (!q) throw new Error(`No question at position ${args.position}`);
-                const patch: Record<string, unknown> = {};
+                const patch: {
+                  title?: string;
+                  description?: string | null;
+                  required?: boolean;
+                  type?: QuestionType;
+                  config?: Json;
+                } = {};
                 if (args.title !== undefined) patch.title = args.title;
                 if (args.description !== undefined) patch.description = args.description;
                 if (args.required !== undefined) patch.required = args.required;
                 const nextType = (args.type ?? q.type) as QuestionType;
-                if (args.type) patch.type = args.type;
+                if (args.type) patch.type = args.type as QuestionType;
                 if (args.options || args.minLabel || args.maxLabel || args.max || args.type) {
                   patch.config = buildConfig({
                     type: nextType,
