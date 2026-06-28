@@ -1,7 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { UIMessage } from "ai";
+export type StoredMessage = {
+  id: string;
+  role: "user" | "assistant";
+  parts: Array<Record<string, unknown>>;
+};
 
 export const listSurveyChat = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -14,20 +18,18 @@ export const listSurveyChat = createServerFn({ method: "GET" })
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
 
-    type StoredMessage = { id: string; role: "user" | "assistant"; parts: UIMessage["parts"] };
     const messages: StoredMessage[] = (rows ?? []).map((row) => {
-      // Prefer the rich `parts` blob; fall back to legacy text content.
       if (row.parts && Array.isArray(row.parts)) {
         return {
           id: row.id,
           role: row.role === "user" ? "user" : "assistant",
-          parts: row.parts as UIMessage["parts"],
+          parts: row.parts as Array<Record<string, unknown>>,
         };
       }
       return {
         id: row.id,
         role: row.role === "user" ? "user" : "assistant",
-        parts: [{ type: "text", text: row.content ?? "" }],
+        parts: [{ type: "text", text: row.content ?? "" } as Record<string, unknown>],
       };
     });
     return messages;
