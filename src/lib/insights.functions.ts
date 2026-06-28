@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
 
 export const getSurveyInsights = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -24,7 +25,7 @@ export const getSurveyInsights = createServerFn({ method: "GET" })
       .select("id, started_at, completed_at")
       .eq("survey_id", data.survey_id);
     const responseIds = (responses ?? []).map((r) => r.id);
-    let answers: { question_id: string; value: unknown; value_text: string | null; value_number: number | null }[] = [];
+    let answers: { question_id: string; value: Json; value_text: string | null; value_number: number | null }[] = [];
     if (responseIds.length) {
       const { data: ans } = await context.supabase
         .from("answers")
@@ -66,7 +67,7 @@ export const listResponses = createServerFn({ method: "GET" })
       .order("started_at", { ascending: false })
       .limit(200);
     const ids = (responses ?? []).map((r) => r.id);
-    let answers: { response_id: string; question_id: string; value: unknown; value_text: string | null; value_number: number | null }[] = [];
+    let answers: { response_id: string; question_id: string; value: Json; value_text: string | null; value_number: number | null }[] = [];
     if (ids.length) {
       const { data: ans } = await context.supabase
         .from("answers")
@@ -114,7 +115,7 @@ export const getSourceOfTruth = createServerFn({ method: "GET" })
     ]);
     const questionIds = (questions ?? []).map((q) => q.id);
     const responseIds = (responses ?? []).map((r) => r.id);
-    let answers: { response_id: string; question_id: string; value: unknown; value_text: string | null; value_number: number | null; created_at: string }[] = [];
+    let answers: { response_id: string; question_id: string; value: Json; value_text: string | null; value_number: number | null; created_at: string }[] = [];
     if (responseIds.length) {
       const { data: ans } = await context.supabase
         .from("answers")
