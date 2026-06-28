@@ -233,6 +233,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          parts: Json | null
           role: string
           survey_id: string
           tool_payload: Json | null
@@ -241,6 +242,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          parts?: Json | null
           role: string
           survey_id: string
           tool_payload?: Json | null
@@ -249,6 +251,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          parts?: Json | null
           role?: string
           survey_id?: string
           tool_payload?: Json | null
