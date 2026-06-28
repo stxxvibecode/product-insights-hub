@@ -10,6 +10,13 @@ import { listSurveyChat } from "@/lib/survey-chat.functions";
 import { QuestionPreview } from "@/components/QuestionPreview";
 import type { QuestionType } from "@/lib/question-types";
 import { supabase } from "@/integrations/supabase/client";
+import { ThemePanel } from "@/components/ThemePanel";
+import {
+  themeStyle,
+  backgroundClass,
+  DEFAULT_THEME,
+  type SurveyTheme,
+} from "@/lib/survey-theme";
 import {
   Conversation,
   ConversationContent,
@@ -187,6 +194,26 @@ function SurveyComposer() {
   const survey = surveyQ.data?.survey;
   const questions = surveyQ.data?.questions ?? [];
 
+  // Theme state, debounced save.
+  const remoteTheme = useMemo<SurveyTheme>(
+    () => ({ ...DEFAULT_THEME, ...((survey?.theme as SurveyTheme | null) ?? {}) }),
+    [survey?.theme],
+  );
+  const [theme, setTheme] = useState<SurveyTheme>(remoteTheme);
+  useEffect(() => {
+    setTheme(remoteTheme);
+  }, [remoteTheme]);
+  const themeSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function handleThemeChange(next: SurveyTheme) {
+    setTheme(next);
+    if (themeSaveRef.current) clearTimeout(themeSaveRef.current);
+    themeSaveRef.current = setTimeout(() => {
+      updateSurveyFn({ data: { id, theme: next as Record<string, unknown> } })
+        .then(() => qc.invalidateQueries({ queryKey: ["survey", id] }))
+        .catch((e: Error) => toast.error(e.message));
+    }, 400);
+  }
+
   // Composer focus management.
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => {
@@ -351,6 +378,8 @@ function SurveyComposer() {
           <PreviewPane
             title={survey?.title ?? ""}
             slug={survey?.slug ?? null}
+            theme={theme}
+            onThemeChange={handleThemeChange}
             questions={questions.map((q) => ({
               id: q.id,
               type: q.type as QuestionType,
