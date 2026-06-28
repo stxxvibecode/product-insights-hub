@@ -359,7 +359,10 @@ export const Route = createFileRoute("/api/chat/surveys/$id")({
                 const merged = { ...(cur?.theme as Record<string, unknown> ?? {}), ...next };
                 // If the model set an explicit preset without an accent, drop the previous custom accent.
                 if (input.preset && !accent) delete (merged as Record<string, unknown>).accent;
-                const { error } = await supabase.from("surveys").update({ theme: merged }).eq("id", surveyId);
+                const { error } = await supabase
+                  .from("surveys")
+                  .update({ theme: merged as Json })
+                  .eq("id", surveyId);
                 if (error) throw new Error(error.message);
                 return { ok: true, theme: merged };
               },
