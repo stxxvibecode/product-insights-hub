@@ -1,49 +1,56 @@
+# ChatGPT-style survey composer
 
-# Make the builder feel like Lovable.dev
+Today `/surveys/$id` already has a chat-on-left / preview-on-right layout, but the chat is a non-streaming `createServerFn` that returns one structured JSON blob and rewrites the whole survey on each turn. We'll replace it with a proper streaming chat agent: AI Elements UI, AI SDK `useChat`, server-side streaming through a TanStack server route, and granular tool calls the agent uses to edit the survey live.
 
-Right now `/surveys/new` drops you into a manual drag-and-drop editor. You want the Lovable.dev experience: you describe the survey in plain English, AI generates it, you see the Typeform-style preview live, and you keep iterating by chatting.
+## What the user will see
 
-## What changes
+- A full-height chat surface that looks and behaves like ChatGPT/Lovable: streaming markdown, a sticky composer, a "Thinking…" shimmer while the model works, copy/retry message actions, and an empty-state with example prompts.
+- Live preview pane on the right keeps the Typeform-style one-question-at-a-time render. Each tool call from the agent updates the preview the moment it finishes (optimistic invalidation), so users watch their survey assemble itself.
+- Per-survey conversation: each survey is its own thread, persisted in the existing `survey_chat_messages` table. Opening a survey reloads its full chat history. (No global thread list — the survey list IS the thread list.)
+- Tool calls render inline in assistant messages as collapsed accordions (e.g. "Added 4 questions", "Renamed survey", "Tagged question 2 with onboarding") using AI Elements `Tool` components — closed by default, expandable for details.
+- New brand mark for the AI agent (small generated logo) instead of the `Sparkles` lucide icon, per chat-ui-composition guidance.
 
-### 1. New "Create" surface (`/surveys/new`) — Lovable-style split view
-- **Left (40%)**: chat composer.
-  - Big centered prompt on first load ("Describe the survey you want to run…") with example chips: "Post-onboarding NPS", "Pricing page feedback", "Churn exit interview", "Feature request triage".
-  - After first send, collapses into a normal chat transcript built from AI Elements (`Conversation`, `Message`, `MessageResponse`, `PromptInput`, `Shimmer`) — assistant messages render plain on surface, user messages in a high-contrast bubble.
-  - Each assistant turn shows a collapsed tool card ("Generated 6 questions", "Edited question 3", "Added theme tag: pricing").
-- **Right (60%)**: live Typeform-style preview of the survey the AI is building, using the existing `QuestionPreview` component inside the respondent shell. A thin top bar shows survey title, status pill (Draft), and "Open builder" / "Share" once questions exist.
-- Streaming: as the AI returns questions, they appear one-by-one in the preview (fade+slide using Motion, same transition as `/s/$slug`).
+## How it works
 
-### 2. AI generation (Lovable AI Gateway, no key needed)
-- New server fn `generateSurvey` in `src/lib/ai-survey.functions.ts`:
-  - Input: `{ surveyId, prompt, history }` (history = prior chat turns for this survey).
-  - Calls Lovable AI Gateway (`google/gemini-2.5-flash` default) with a structured-output schema that returns `{ title, description, questions: [{ type, title, description?, required, config, tags[] }] }` using our 10 existing `QuestionType`s and `defaultConfigFor` shapes.
-  - Persists the result: updates `surveys.title/description`, replaces or patches `questions` (and `question_tags`, auto-creating tags by name), depending on intent.
-  - Returns the diff (added/edited/removed question ids + a short assistant message) so the chat can render a tool card.
-- Intent routing happens inside the same fn via the model: "create", "edit question N", "add question about X", "make it shorter", "translate to Spanish", "change tone", etc.
-- All chat turns saved to a new `survey_chat_messages` table (`id, survey_id, role, content, tool_payload jsonb, created_at`) with owner-scoped RLS, so reopening a survey resumes the conversation.
+```text
+useChat (client)
+  └── DefaultChatTransport → POST /api/chat/surveys/$id
+        └── streamText (Lovable AI Gateway, gemini-3-flash-preview)
+              ├── system prompt (survey-composer persona)
+              ├── tools: set_survey_meta, add_question, update_question,
+              │          remove_question, reorder_questions, replace_all_questions,
+              │          tag_question
+              └── onFinish → persist assistant UIMessage to survey_chat_messages
+```
 
-### 3. Existing manual builder becomes "Advanced"
-- `/surveys/$id` keeps the current drag-and-drop builder but is reached via an "Open builder" link from the AI view. Default entry point for a survey is the AI chat at `/surveys/$id` (chat + preview); the dnd editor moves to `/surveys/$id/edit`.
-- Inspector edits made manually flow back into the chat as system notes ("You edited Q3 manually") so the AI stays in sync.
+- The server route loads the current survey + questions + tags on every request and injects a compact snapshot into the system prompt so the model always edits against the live state.
+- Each tool's `execute` runs a single Supabase mutation scoped to the survey owner (auth verified once at request start). Tools return small JSON results that get streamed back as `tool-result` parts.
+- React Query invalidates `["survey", id]` whenever a tool result arrives, so the preview re-renders mid-stream.
+- `stopWhen: stepCountIs(50)` so the agent can chain multiple edits in one turn (e.g. "rewrite question 3 and add an NPS at the end").
 
-### 4. Landing page CTA
-- Update `/` hero CTA + interactive preview to show the prompt-to-survey moment ("Describe your survey → see it live") instead of the static demo, to match the new product story.
+## Files
 
-## Technical notes
+New / rewritten:
+- `src/routes/api/chat.surveys.$id.ts` — streaming chat route with the tool set and `onFinish` persistence.
+- `src/lib/ai-gateway.server.ts` — shared Lovable AI Gateway provider helper (replaces the inline fetch in `ai-survey.functions.ts`).
+- `src/routes/_authenticated/surveys.$id.tsx` — rewritten to use `useChat` + AI Elements (`Conversation`, `Message`, `MessageResponse`, `PromptInput`, `Tool`, `Shimmer`). Keeps the right-side live preview.
+- `src/components/AgentMark.tsx` — small generated logo (PNG via image gen) used as the assistant avatar and empty-state mark.
+- `src/lib/survey-chat.functions.ts` — `listSurveyChat` (load history for `useChat` initial messages) and a thin `loadSurveySnapshot` helper.
 
-- **AI Elements**: install `conversation message prompt-input shimmer tool` via `bun x ai-elements@latest add …` before composing the chat UI. Assistant messages render with `MessageResponse`; tool cards use `Tool` with `defaultOpen={false}`.
-- **Streaming**: Lovable AI Gateway supports SSE. Use a TanStack server route `src/routes/api/ai/generate-survey.ts` (POST, auth-checked via bearer) that streams structured deltas; the chat client reads the stream and applies question inserts/edits to a local store mirrored to the DB on stream end. Falls back to non-streaming if the model returns full JSON.
-- **Schema**: new migration adds `survey_chat_messages` with grants + RLS (owner-only via `surveys.owner_id`). No changes to existing tables.
-- **Tags**: AI-suggested tag names are upserted into `tags` (case-insensitive) for the owner before linking via `question_tags`, so cross-survey themes still aggregate on the dashboard.
-- **Routes**:
-  - `src/routes/_authenticated/surveys.new.tsx` → creates a draft survey + redirects to `/surveys/$id`.
-  - `src/routes/_authenticated/surveys.$id.tsx` → rewritten as the AI chat + live preview (default).
-  - `src/routes/_authenticated/surveys.$id.edit.tsx` → the existing dnd builder, moved.
-- **No new secrets**: uses the managed Lovable AI Gateway. Default model `google/gemini-2.5-flash` (fast, free during promo, strong at structured output).
+Edited:
+- `src/start.ts` — already has `attachSupabaseAuth`; no change unless missing.
+- `src/lib/ai-survey.functions.ts` — deleted (superseded). `listSurveyChat` moves to `survey-chat.functions.ts`.
+- `src/routes/index.tsx` — minor copy refresh so the hero matches the new chat experience.
 
-## Out of scope for this pass
-- Multi-step AI tool calling beyond generate/edit (e.g. analyzing prior responses to suggest follow-ups) — easy to add later on the same chat surface.
-- Image/logo generation for survey theming.
-- Voice input on the prompt.
+Database: existing `survey_chat_messages` table is reused. We'll store AI SDK `UIMessage`-shaped rows (role + parts JSON) so tool calls round-trip cleanly. One small migration adds a `parts jsonb` column (keeping the legacy `content`/`tool_payload` for backward compat) and lets the DB generate UUIDs for new rows.
 
-Want me to build it?
+## Dependencies
+
+- `bun add ai @ai-sdk/react @ai-sdk/openai-compatible zod`
+- AI Elements install: `bun x ai-elements@latest add conversation message prompt-input tool shimmer`
+
+## Out of scope (existing, untouched)
+
+- The drag-and-drop "Builder" at `/surveys/$id/edit` stays as the manual fallback.
+- Public respondent flow `/s/$slug`, dashboard, settings, auth — no changes.
+- No global thread list / no thread sidebar (per-survey threads only).
