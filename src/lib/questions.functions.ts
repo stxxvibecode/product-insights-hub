@@ -60,7 +60,8 @@ export const updateQuestion = createServerFn({ method: "POST" })
     const { id, ...patch } = data;
     const { data: updated, error } = await context.supabase
       .from("questions")
-      .update(patch as Record<string, unknown>)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update(patch as any)
       .eq("id", id)
       .select()
       .single();
