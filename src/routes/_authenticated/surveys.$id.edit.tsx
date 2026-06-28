@@ -24,7 +24,7 @@ import { listTags, createTag, assignTag, unassignTag, getQuestionTags } from "@/
 import { getSurveyInsights } from "@/lib/insights.functions";
 import { QUESTION_TYPE_META, type QuestionType } from "@/lib/question-types";
 
-export const Route = createFileRoute("/_authenticated/surveys/$id/edit")({
+export const Route = createFileRoute("/_authenticated/surveys/$id/edit/edit")({
   head: () => ({ meta: [{ title: "Edit survey — Insightform" }] }),
   component: SurveyBuilder,
 });
