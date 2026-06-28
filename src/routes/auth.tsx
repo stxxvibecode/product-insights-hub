@@ -62,7 +62,6 @@ function AuthPage() {
     if (result.redirected) return;
     navigate({ to: "/dashboard", replace: true });
     setLoading(false);
-    }
   }
 
   return (
