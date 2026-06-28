@@ -9,6 +9,7 @@ import type { QuestionType } from "@/lib/question-types";
 import { QuestionPreview } from "@/components/QuestionPreview";
 import { Logo } from "@/components/Logo";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { themeStyle, backgroundClass, type SurveyTheme } from "@/lib/survey-theme";
 
 export const Route = createFileRoute("/s/$slug")({
   head: () => ({ meta: [{ title: "Survey — Insightform" }] }),
@@ -78,10 +79,14 @@ function PublicSurvey() {
   }
 
   const progress = stage === "done" ? 1 : stage === "welcome" ? 0 : (index + 1) / (questions.length || 1);
+  const theme = (survey!.theme as SurveyTheme | null) ?? {};
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 grain opacity-50" />
+    <div
+      className={`relative min-h-screen overflow-hidden bg-background text-foreground ${backgroundClass(theme)}`}
+      style={themeStyle(theme)}
+    >
+      <div className="pointer-events-none absolute inset-0 grain opacity-40" />
       <div className="pointer-events-none absolute -top-32 left-1/2 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-signal/10 blur-3xl" />
 
       <header className="relative z-10 mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
