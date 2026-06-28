@@ -1,49 +1,44 @@
-## What changes
+Make the survey detail page feel like lovable.dev — chat-led on the left, a polished live "preview frame" on the right, with a calmer header and a softer agent presence.
 
-Replace the current "Surveys" library page (title + small inline title input + empty card) with a **lovable.dev-style entry surface**: one large, centered prompt as the hero, with the survey library demoted below as recent work.
+### What changes
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│                                                          │
-│        What do you want to learn from your users?        │
-│                                                          │
-│  ╭────────────────────────────────────────────────────╮  │
-│  │ Describe the survey you want to build…             │  │
-│  │                                                    │  │
-│  │                                                    │  │
-│  │                                                    │  │
-│  │  [📎 attach]                       [ Compose ↑ ]   │  │
-│  ╰────────────────────────────────────────────────────╯  │
-│                                                          │
-│   Try:  ◦ Post-purchase NPS    ◦ Onboarding pulse        │
-│         ◦ Win/loss interview   ◦ Feature prioritization  │
-│                                                          │
-│  ─── Your surveys ─────────────────────────────────────  │
-│  [card] [card] [card] [card]                             │
-└──────────────────────────────────────────────────────────┘
-```
+**1. Lovable-style header (slim, single row)**
+- Replace the current 2-line header with a slim bar: agent mark · editable title · status dot · spacer · `Advanced`, `Open`, `Publish`.
+- Move `← Back to surveys` into the sidebar/agent-mark click; remove the dedicated back button to declutter.
+- Add a subtle bottom border + backdrop blur so it floats over the split.
 
-## Behavior
+**2. Chat pane — lovable.dev feel**
+- Center column max-width ~640px, generous vertical rhythm.
+- Assistant messages: no bubble, plain text on background (per `chat-ui-composition`). Agent mark only on the first assistant message of a run, not every turn.
+- User messages: compact rounded bubble using `bg-card` + `text-foreground` (high contrast, not signal-tinted).
+- Tool calls render as compact inline cards ("Added question 3 · NPS"), collapsed by default, with a domain icon (ListChecks, Star, Hash, Tag…) instead of generic chevrons.
+- Thinking state: agent mark + `Shimmer` "Composing…" inline, not in a separate row.
+- Empty state: large agent mark, headline "What should we learn?", description, and 4 starter chips laid out as a 2×2 grid of soft cards (matches lovable.dev's prompt suggestions).
 
-- Submitting the prompt (Enter or the send button) creates a new survey with a placeholder title, navigates to `/surveys/$id`, and **seeds the chat with the typed prompt as the first user message** so the agent immediately starts composing — no second step.
-- Clicking a suggestion chip does the same thing with that text.
-- Empty state: only the hero prompt — no "No surveys yet" card.
-- With surveys present: same hero, plus a "Your surveys" grid below using the existing card style.
-- Sidebar nav, dashboard, and `/surveys/$id` composer stay unchanged. This is only the entry/library page.
+**3. Composer (sticky bottom, lovable.dev style)**
+- Sticky to the bottom of the chat pane with a fade gradient above it.
+- Single rounded card: textarea + footer row with a faint hint on the left and a circular signal-colored submit on the right.
+- Auto-focus on mount, after send, after stream completion, after thread/route change (per `chat-agent-ui-contract`).
+- ⌘/Ctrl+Enter to send; Shift+Enter newline; disable submit while `submitted`/`streaming`.
 
-## Visual direction (lovable.dev feel)
+**4. Preview pane — "device frame"**
+- Wrap the live respondent preview in a rounded "browser frame" card (top chrome with 3 dots + the public `/s/<slug>` URL pill, copy button).
+- Inside: the Typeform-style one-question-at-a-time preview that already exists, on a soft radial background.
+- Footer of the frame: prev/next, "Question X of Y", and a small "Open public link" button.
+- Empty preview (no questions yet): centered agent mark + "Your survey will appear here as the agent builds it."
 
-- Full-bleed dark canvas, vertically centered hero.
-- Large display headline (`font-display`, ~5xl) sitting directly on the background — no card around it.
-- Prompt box: rounded-2xl, 1px hairline border, subtle inner shadow, large multi-line textarea (~140px min), generous padding, send button as a filled signal-colored icon button anchored bottom-right inside the box. Built on AI Elements `PromptInput` / `PromptInputTextarea` / `PromptInputFooter` / `PromptInputSubmit` so it matches the composer inside the survey.
-- Soft radial signal-coral glow behind the prompt box for warmth.
-- Suggestion chips: small, pill-shaped, muted text, hover lifts to foreground.
-- Recent surveys section uses a quiet `LIBRARY · Your surveys` eyebrow and the existing card grid, but smaller and below the fold so the prompt owns the page.
+**5. Agent identity & micro-polish**
+- Reuse existing `src/assets/agent-mark.png` as the consistent identity across header, empty state, thinking, and preview empty state.
+- Friendly tool-name map (Adding question, Renaming survey, Tagging theme, Rebuilding survey, etc.) shown in tool headers.
+- Keep all colors on semantic tokens (`signal`, `card`, `border`, `muted-foreground`); no hardcoded hex.
 
-## Technical notes
+### Files touched (frontend only)
 
-- Edit only `src/routes/_authenticated/surveys.index.tsx`.
-- Reuse `createSurvey` server fn. Derive the working title from the first ~60 chars of the prompt (fallback "Untitled survey"). On success, `navigate({ to: "/surveys/$id", params: { id }, search: { prompt } })`.
-- Add `validateSearch` on `src/routes/_authenticated/surveys.$id.tsx` for an optional `prompt` string. In the composer, if `prompt` is present **and** there are no existing chat messages for that survey, auto-`sendMessage({ text: prompt })` once, then strip the param via `navigate({ search: {} , replace: true })` so refresh doesn't re-send.
-- Use AI Elements primitives already installed (`prompt-input`); no new packages.
-- Keep dark theme, semantic tokens (`bg-background`, `text-foreground`, `border-border`, `signal`). No hardcoded colors.
+- `src/routes/_authenticated/surveys.$id.tsx` — header restructure, chat layout, empty state, sticky composer, focus management, tool-name map, preview frame wrapper.
+- `src/components/ai-elements/*` — leave as installed; only compose around them.
+
+### Out of scope
+
+- No changes to server routes, tools, persistence, or the AI model.
+- No changes to `surveys.index.tsx` (already lovable-style entry).
+- No changes to the manual `/edit` builder.
