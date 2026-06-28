@@ -16,6 +16,7 @@ import { Route as SSlugRouteImport } from './routes/s.$slug'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedSurveysIndexRouteImport } from './routes/_authenticated/surveys.index'
+import { Route as AuthenticatedSurveysIdRouteImport } from './routes/_authenticated/surveys.$id'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -52,6 +53,11 @@ const AuthenticatedSurveysIndexRoute =
     path: '/surveys/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSurveysIdRoute = AuthenticatedSurveysIdRouteImport.update({
+  id: '/surveys/$id',
+  path: '/surveys/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/s/$slug': typeof SSlugRoute
+  '/surveys/$id': typeof AuthenticatedSurveysIdRoute
   '/surveys/': typeof AuthenticatedSurveysIndexRoute
 }
 export interface FileRoutesByTo {
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/s/$slug': typeof SSlugRoute
+  '/surveys/$id': typeof AuthenticatedSurveysIdRoute
   '/surveys': typeof AuthenticatedSurveysIndexRoute
 }
 export interface FileRoutesById {
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/s/$slug': typeof SSlugRoute
+  '/_authenticated/surveys/$id': typeof AuthenticatedSurveysIdRoute
   '/_authenticated/surveys/': typeof AuthenticatedSurveysIndexRoute
 }
 export interface FileRouteTypes {
@@ -87,9 +96,17 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/settings'
     | '/s/$slug'
+    | '/surveys/$id'
     | '/surveys/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/settings' | '/s/$slug' | '/surveys'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/settings'
+    | '/s/$slug'
+    | '/surveys/$id'
+    | '/surveys'
   id:
     | '__root__'
     | '/'
@@ -98,6 +115,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/settings'
     | '/s/$slug'
+    | '/_authenticated/surveys/$id'
     | '/_authenticated/surveys/'
   fileRoutesById: FileRoutesById
 }
@@ -159,18 +177,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSurveysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/surveys/$id': {
+      id: '/_authenticated/surveys/$id'
+      path: '/surveys/$id'
+      fullPath: '/surveys/$id'
+      preLoaderRoute: typeof AuthenticatedSurveysIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedSurveysIdRoute: typeof AuthenticatedSurveysIdRoute
   AuthenticatedSurveysIndexRoute: typeof AuthenticatedSurveysIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedSurveysIdRoute: AuthenticatedSurveysIdRoute,
   AuthenticatedSurveysIndexRoute: AuthenticatedSurveysIndexRoute,
 }
 
