@@ -14,18 +14,19 @@ export const listSurveyChat = createServerFn({ method: "GET" })
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
 
-    const messages: UIMessage[] = (rows ?? []).map((row) => {
+    type StoredMessage = { id: string; role: "user" | "assistant"; parts: UIMessage["parts"] };
+    const messages: StoredMessage[] = (rows ?? []).map((row) => {
       // Prefer the rich `parts` blob; fall back to legacy text content.
       if (row.parts && Array.isArray(row.parts)) {
         return {
           id: row.id,
-          role: (row.role === "user" ? "user" : "assistant") as "user" | "assistant",
+          role: row.role === "user" ? "user" : "assistant",
           parts: row.parts as UIMessage["parts"],
         };
       }
       return {
         id: row.id,
-        role: (row.role === "user" ? "user" : "assistant") as "user" | "assistant",
+        role: row.role === "user" ? "user" : "assistant",
         parts: [{ type: "text", text: row.content ?? "" }],
       };
     });
