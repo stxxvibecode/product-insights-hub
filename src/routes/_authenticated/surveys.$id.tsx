@@ -95,29 +95,17 @@ function SurveyComposer() {
     }));
   }, [chatQ.data]);
 
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled) setAuthToken(data.session?.access_token ?? null);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setAuthToken(session?.access_token ?? null);
-    });
-    return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: `/api/chat/surveys/${id}`,
-        headers: (): Record<string, string> =>
-          authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        headers: async (): Promise<Record<string, string>> => {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          return token ? { Authorization: `Bearer ${token}` } : {};
+        },
       }),
-    [id, authToken],
+    [id],
   );
 
   const { messages, sendMessage, status, setMessages, error } = useChat({
@@ -130,7 +118,7 @@ function SurveyComposer() {
   const seededRef = useRef(false);
   useEffect(() => {
     if (seededRef.current) return;
-    if (!seedPrompt || !authToken) return;
+    if (!seedPrompt) return;
     if (!chatQ.isFetched) return; // wait for history check
     if (initialMessages.length > 0) {
       // chat already exists; just clear the param
@@ -141,7 +129,7 @@ function SurveyComposer() {
     seededRef.current = true;
     void sendMessage({ text: seedPrompt });
     navigate({ to: "/surveys/$id", params: { id }, search: {}, replace: true });
-  }, [seedPrompt, authToken, chatQ.isFetched, initialMessages.length, sendMessage, navigate, id]);
+  }, [seedPrompt, chatQ.isFetched, initialMessages.length, sendMessage, navigate, id]);
 
   // Hydrate from server on first chat-load (or refresh).
   const hydratedRef = useRef(false);
