@@ -1,56 +1,49 @@
-# ChatGPT-style survey composer
+## What changes
 
-Today `/surveys/$id` already has a chat-on-left / preview-on-right layout, but the chat is a non-streaming `createServerFn` that returns one structured JSON blob and rewrites the whole survey on each turn. We'll replace it with a proper streaming chat agent: AI Elements UI, AI SDK `useChat`, server-side streaming through a TanStack server route, and granular tool calls the agent uses to edit the survey live.
-
-## What the user will see
-
-- A full-height chat surface that looks and behaves like ChatGPT/Lovable: streaming markdown, a sticky composer, a "Thinking…" shimmer while the model works, copy/retry message actions, and an empty-state with example prompts.
-- Live preview pane on the right keeps the Typeform-style one-question-at-a-time render. Each tool call from the agent updates the preview the moment it finishes (optimistic invalidation), so users watch their survey assemble itself.
-- Per-survey conversation: each survey is its own thread, persisted in the existing `survey_chat_messages` table. Opening a survey reloads its full chat history. (No global thread list — the survey list IS the thread list.)
-- Tool calls render inline in assistant messages as collapsed accordions (e.g. "Added 4 questions", "Renamed survey", "Tagged question 2 with onboarding") using AI Elements `Tool` components — closed by default, expandable for details.
-- New brand mark for the AI agent (small generated logo) instead of the `Sparkles` lucide icon, per chat-ui-composition guidance.
-
-## How it works
+Replace the current "Surveys" library page (title + small inline title input + empty card) with a **lovable.dev-style entry surface**: one large, centered prompt as the hero, with the survey library demoted below as recent work.
 
 ```text
-useChat (client)
-  └── DefaultChatTransport → POST /api/chat/surveys/$id
-        └── streamText (Lovable AI Gateway, gemini-3-flash-preview)
-              ├── system prompt (survey-composer persona)
-              ├── tools: set_survey_meta, add_question, update_question,
-              │          remove_question, reorder_questions, replace_all_questions,
-              │          tag_question
-              └── onFinish → persist assistant UIMessage to survey_chat_messages
+┌──────────────────────────────────────────────────────────┐
+│                                                          │
+│        What do you want to learn from your users?        │
+│                                                          │
+│  ╭────────────────────────────────────────────────────╮  │
+│  │ Describe the survey you want to build…             │  │
+│  │                                                    │  │
+│  │                                                    │  │
+│  │                                                    │  │
+│  │  [📎 attach]                       [ Compose ↑ ]   │  │
+│  ╰────────────────────────────────────────────────────╯  │
+│                                                          │
+│   Try:  ◦ Post-purchase NPS    ◦ Onboarding pulse        │
+│         ◦ Win/loss interview   ◦ Feature prioritization  │
+│                                                          │
+│  ─── Your surveys ─────────────────────────────────────  │
+│  [card] [card] [card] [card]                             │
+└──────────────────────────────────────────────────────────┘
 ```
 
-- The server route loads the current survey + questions + tags on every request and injects a compact snapshot into the system prompt so the model always edits against the live state.
-- Each tool's `execute` runs a single Supabase mutation scoped to the survey owner (auth verified once at request start). Tools return small JSON results that get streamed back as `tool-result` parts.
-- React Query invalidates `["survey", id]` whenever a tool result arrives, so the preview re-renders mid-stream.
-- `stopWhen: stepCountIs(50)` so the agent can chain multiple edits in one turn (e.g. "rewrite question 3 and add an NPS at the end").
+## Behavior
 
-## Files
+- Submitting the prompt (Enter or the send button) creates a new survey with a placeholder title, navigates to `/surveys/$id`, and **seeds the chat with the typed prompt as the first user message** so the agent immediately starts composing — no second step.
+- Clicking a suggestion chip does the same thing with that text.
+- Empty state: only the hero prompt — no "No surveys yet" card.
+- With surveys present: same hero, plus a "Your surveys" grid below using the existing card style.
+- Sidebar nav, dashboard, and `/surveys/$id` composer stay unchanged. This is only the entry/library page.
 
-New / rewritten:
-- `src/routes/api/chat.surveys.$id.ts` — streaming chat route with the tool set and `onFinish` persistence.
-- `src/lib/ai-gateway.server.ts` — shared Lovable AI Gateway provider helper (replaces the inline fetch in `ai-survey.functions.ts`).
-- `src/routes/_authenticated/surveys.$id.tsx` — rewritten to use `useChat` + AI Elements (`Conversation`, `Message`, `MessageResponse`, `PromptInput`, `Tool`, `Shimmer`). Keeps the right-side live preview.
-- `src/components/AgentMark.tsx` — small generated logo (PNG via image gen) used as the assistant avatar and empty-state mark.
-- `src/lib/survey-chat.functions.ts` — `listSurveyChat` (load history for `useChat` initial messages) and a thin `loadSurveySnapshot` helper.
+## Visual direction (lovable.dev feel)
 
-Edited:
-- `src/start.ts` — already has `attachSupabaseAuth`; no change unless missing.
-- `src/lib/ai-survey.functions.ts` — deleted (superseded). `listSurveyChat` moves to `survey-chat.functions.ts`.
-- `src/routes/index.tsx` — minor copy refresh so the hero matches the new chat experience.
+- Full-bleed dark canvas, vertically centered hero.
+- Large display headline (`font-display`, ~5xl) sitting directly on the background — no card around it.
+- Prompt box: rounded-2xl, 1px hairline border, subtle inner shadow, large multi-line textarea (~140px min), generous padding, send button as a filled signal-colored icon button anchored bottom-right inside the box. Built on AI Elements `PromptInput` / `PromptInputTextarea` / `PromptInputFooter` / `PromptInputSubmit` so it matches the composer inside the survey.
+- Soft radial signal-coral glow behind the prompt box for warmth.
+- Suggestion chips: small, pill-shaped, muted text, hover lifts to foreground.
+- Recent surveys section uses a quiet `LIBRARY · Your surveys` eyebrow and the existing card grid, but smaller and below the fold so the prompt owns the page.
 
-Database: existing `survey_chat_messages` table is reused. We'll store AI SDK `UIMessage`-shaped rows (role + parts JSON) so tool calls round-trip cleanly. One small migration adds a `parts jsonb` column (keeping the legacy `content`/`tool_payload` for backward compat) and lets the DB generate UUIDs for new rows.
+## Technical notes
 
-## Dependencies
-
-- `bun add ai @ai-sdk/react @ai-sdk/openai-compatible zod`
-- AI Elements install: `bun x ai-elements@latest add conversation message prompt-input tool shimmer`
-
-## Out of scope (existing, untouched)
-
-- The drag-and-drop "Builder" at `/surveys/$id/edit` stays as the manual fallback.
-- Public respondent flow `/s/$slug`, dashboard, settings, auth — no changes.
-- No global thread list / no thread sidebar (per-survey threads only).
+- Edit only `src/routes/_authenticated/surveys.index.tsx`.
+- Reuse `createSurvey` server fn. Derive the working title from the first ~60 chars of the prompt (fallback "Untitled survey"). On success, `navigate({ to: "/surveys/$id", params: { id }, search: { prompt } })`.
+- Add `validateSearch` on `src/routes/_authenticated/surveys.$id.tsx` for an optional `prompt` string. In the composer, if `prompt` is present **and** there are no existing chat messages for that survey, auto-`sendMessage({ text: prompt })` once, then strip the param via `navigate({ search: {} , replace: true })` so refresh doesn't re-send.
+- Use AI Elements primitives already installed (`prompt-input`); no new packages.
+- Keep dark theme, semantic tokens (`bg-background`, `text-foreground`, `border-border`, `signal`). No hardcoded colors.
