@@ -1,10 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
+
 export type StoredMessage = {
   id: string;
   role: "user" | "assistant";
-  parts: Array<Record<string, unknown>>;
+  parts: Json;
 };
 
 export const listSurveyChat = createServerFn({ method: "GET" })
@@ -23,13 +25,13 @@ export const listSurveyChat = createServerFn({ method: "GET" })
         return {
           id: row.id,
           role: row.role === "user" ? "user" : "assistant",
-          parts: row.parts as Array<Record<string, unknown>>,
+          parts: row.parts as Json,
         };
       }
       return {
         id: row.id,
         role: row.role === "user" ? "user" : "assistant",
-        parts: [{ type: "text", text: row.content ?? "" } as Record<string, unknown>],
+        parts: [{ type: "text", text: row.content ?? "" }] as unknown as Json,
       };
     });
     return messages;
