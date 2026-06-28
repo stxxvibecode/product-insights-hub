@@ -524,10 +524,14 @@ function PreviewPane({
   title,
   slug,
   questions,
+  theme,
+  onThemeChange,
 }: {
   title: string;
   slug: string | null;
   questions: PreviewQ[];
+  theme: SurveyTheme;
+  onThemeChange: (next: SurveyTheme) => void;
 }) {
   const [idx, setIdx] = useState(0);
   const [value, setValue] = useState<unknown>(null);
@@ -558,7 +562,8 @@ function PreviewPane({
   }
 
   return (
-    <div className="flex min-h-0 flex-col bg-[radial-gradient(circle_at_80%_-10%,rgba(255,122,69,0.10),transparent_55%)]">
+    <div className="flex min-h-0 flex-col">
+      <ThemePanel theme={theme} onChange={onThemeChange} />
       <div className="flex min-h-0 flex-1 flex-col p-6">
         {/* Browser frame */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/70 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.6)] backdrop-blur">
@@ -594,8 +599,11 @@ function PreviewPane({
             )}
           </div>
 
-          {/* Frame body */}
-          <div className="relative min-h-0 flex-1 overflow-hidden">
+          {/* Frame body — themed surface */}
+          <div
+            className={`relative min-h-0 flex-1 overflow-hidden ${backgroundClass(theme)}`}
+            style={themeStyle(theme)}
+          >
             {questions.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center px-6 text-center">
                 <img src={agentMark} alt="" className="h-10 w-10 rounded-xl opacity-90" />
