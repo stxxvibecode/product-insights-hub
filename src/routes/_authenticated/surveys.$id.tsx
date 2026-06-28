@@ -112,7 +112,8 @@ function SurveyComposer() {
     () =>
       new DefaultChatTransport({
         api: `/api/chat/surveys/${id}`,
-        headers: () => (authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        headers: (): Record<string, string> =>
+          authToken ? { Authorization: `Bearer ${authToken}` } : {},
       }),
     [id, authToken],
   );
@@ -138,8 +139,14 @@ function SurveyComposer() {
   useEffect(() => {
     const sig = messages
       .flatMap((m) => m.parts)
-      .filter((p): p is ToolPart => typeof p.type === "string" && p.type.startsWith("tool-"))
-      .map((p) => `${p.toolCallId}:${p.state}`)
+      .map((p) => {
+        const anyP = p as unknown as { type?: string; toolCallId?: string; state?: string };
+        if (typeof anyP.type === "string" && anyP.type.startsWith("tool-")) {
+          return `${anyP.toolCallId}:${anyP.state}`;
+        }
+        return "";
+      })
+      .filter(Boolean)
       .join("|");
     if (sig !== lastToolSig.current) {
       lastToolSig.current = sig;
