@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { defaultConfigFor, defaultTitleFor, type QuestionType } from "./question-types";
+import type { Json } from "@/integrations/supabase/types";
 
 const QTYPES: [QuestionType, ...QuestionType[]] = [
   "short_text","long_text","email","number","single_choice","multi_choice","rating","nps","scale","yes_no",
@@ -28,7 +29,7 @@ export const addQuestion = createServerFn({ method: "POST" })
         type: data.type,
         position,
         title: defaultTitleFor(data.type),
-        config: defaultConfigFor(data.type),
+        config: defaultConfigFor(data.type) as unknown as Json,
       })
       .select()
       .single();
@@ -43,7 +44,7 @@ export const updateQuestion = createServerFn({ method: "POST" })
     title?: string;
     description?: string | null;
     required?: boolean;
-    config?: Record<string, unknown>;
+    config?: unknown;
   }) =>
     z
       .object({
@@ -51,7 +52,7 @@ export const updateQuestion = createServerFn({ method: "POST" })
         title: z.string().max(280).optional(),
         description: z.string().max(500).nullable().optional(),
         required: z.boolean().optional(),
-        config: z.record(z.unknown()).optional(),
+        config: z.unknown().optional(),
       })
       .parse(d),
   )
@@ -59,7 +60,7 @@ export const updateQuestion = createServerFn({ method: "POST" })
     const { id, ...patch } = data;
     const { data: updated, error } = await context.supabase
       .from("questions")
-      .update(patch)
+      .update(patch as Record<string, unknown>)
       .eq("id", id)
       .select()
       .single();
