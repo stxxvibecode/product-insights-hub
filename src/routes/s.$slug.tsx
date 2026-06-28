@@ -11,9 +11,7 @@ import { Logo } from "@/components/Logo";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/s/$slug")({
-  head: ({ loaderData }) => ({
-    meta: [{ title: loaderData?.survey?.title ? `${loaderData.survey.title} — Insightform` : "Survey — Insightform" }],
-  }),
+  head: () => ({ meta: [{ title: "Survey — Insightform" }] }),
   loader: async ({ params }) => {
     const data = await getPublicSurvey({ data: { slug: params.slug } });
     if (!data.survey) throw notFound();
