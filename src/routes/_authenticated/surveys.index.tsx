@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Copy, Radio } from "lucide-react";
 import { toast } from "sonner";
 import agentMark from "@/assets/agent-mark.png";
 import {
@@ -73,6 +73,10 @@ function SurveysIndex() {
     });
     return c;
   }, [data]);
+  const liveSurveys = useMemo(
+    () => (data ?? []).filter((s) => s.status === "live"),
+    [data],
+  );
   const filtered = useMemo(
     () => (data ?? []).filter((s) => (filter === "all" ? true : s.status === filter)),
     [data, filter],
