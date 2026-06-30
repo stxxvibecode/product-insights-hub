@@ -57,28 +57,21 @@ function Landing() {
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-signal" /> Built for product teams
+              <span className="h-1.5 w-1.5 rounded-full bg-signal" /> Describe the survey. Insightform builds the rest.
             </div>
             <h1 className="mt-5 font-display text-5xl font-semibold leading-[1.02] tracking-tight text-balance md:text-6xl lg:text-7xl">
-              Describe a survey. <span className="text-signal">Ship it</span><br className="hidden md:inline" /> in 30 seconds.
+              Turn product questions into <span className="text-signal">insight-ready surveys</span> in seconds.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-              Tell the AI what you want to learn. It drafts a Typeform-grade survey, tags every question, and folds responses into one source-of-truth dashboard for your product team.
+              Tell the AI what you need to learn from your users. Insightform drafts the questions, applies the right tags, and turns responses into a source-of-truth dashboard your product team can actually use.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link to="/auth" className="group inline-flex items-center gap-2 rounded-full bg-signal px-5 py-2.5 text-sm font-medium text-signal-foreground transition-transform hover:-translate-y-0.5">
-                Compose with AI <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                Build my survey <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </Link>
               <a href="#truth" className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm text-muted-foreground hover:text-foreground">
                 See the dashboard
               </a>
-            </div>
-            <div className="mt-10 flex items-center gap-6 font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground">
-              <span>Prompt → survey</span>
-              <span className="text-border">/</span>
-              <span>One question at a time</span>
-              <span className="text-border">/</span>
-              <span>Source of truth</span>
             </div>
           </div>
 
