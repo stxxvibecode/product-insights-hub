@@ -36,13 +36,12 @@ export const startResponse = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const supabase = publicClient();
-    const { data: inserted, error } = await supabase
+    const id = crypto.randomUUID();
+    const { error } = await supabase
       .from("responses")
-      .insert({ survey_id: data.survey_id, respondent_token: data.respondent_token })
-      .select("id")
-      .single();
+      .insert({ id, survey_id: data.survey_id, respondent_token: data.respondent_token });
     if (error) throw new Error(error.message);
-    return inserted;
+    return { id };
   });
 
 export const submitAnswer = createServerFn({ method: "POST" })
