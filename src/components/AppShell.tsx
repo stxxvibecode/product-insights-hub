@@ -4,7 +4,6 @@ import {
   Activity,
   ChevronDown,
   FileText,
-  Home,
   LayoutGrid,
   List,
   LogOut,
