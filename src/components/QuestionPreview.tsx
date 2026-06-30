@@ -19,7 +19,7 @@ export function QuestionPreview({
   config: Cfg;
   value: unknown;
   onChange: (v: unknown) => void;
-  onSubmit?: () => void;
+  onSubmit?: (overrideValue?: unknown) => void;
 }) {
   const text = typeof value === "string" ? value : "";
   const num = typeof value === "number" ? value : null;
@@ -71,7 +71,7 @@ export function QuestionPreview({
             {["Yes", "No"].map((opt) => (
               <button
                 key={opt}
-                onClick={() => { onChange(opt); onSubmit?.(); }}
+                onClick={() => { onChange(opt); onSubmit?.(opt); }}
                 className={`rounded-xl border px-5 py-3 text-base transition-colors ${text === opt ? "border-signal bg-signal text-signal-foreground" : "border-border hover:border-foreground"}`}
               >
                 {opt}
@@ -83,7 +83,7 @@ export function QuestionPreview({
           <ChoiceList
             options={config.options ?? []}
             selected={[text]}
-            onSelect={(opt) => { onChange(opt); onSubmit?.(); }}
+            onSelect={(opt) => { onChange(opt); onSubmit?.(opt); }}
           />
         )}
         {type === "multi_choice" && (
@@ -101,11 +101,11 @@ export function QuestionPreview({
           <StarRow max={config.max ?? 5} value={num ?? 0} onChange={(n) => { onChange(n); }} />
         )}
         {type === "nps" && (
-          <NumberRow min={0} max={10} value={num} onChange={(n) => { onChange(n); onSubmit?.(); }} />
+          <NumberRow min={0} max={10} value={num} onChange={(n) => { onChange(n); onSubmit?.(n); }} />
         )}
         {type === "scale" && (
           <div>
-            <NumberRow min={config.min ?? 1} max={config.max ?? 7} value={num} onChange={(n) => { onChange(n); onSubmit?.(); }} />
+            <NumberRow min={config.min ?? 1} max={config.max ?? 7} value={num} onChange={(n) => { onChange(n); onSubmit?.(n); }} />
             <div className="mt-3 flex justify-between text-xs text-muted-foreground">
               <span>{config.minLabel ?? "Low"}</span>
               <span>{config.maxLabel ?? "High"}</span>
