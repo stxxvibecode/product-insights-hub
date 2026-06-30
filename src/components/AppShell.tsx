@@ -19,7 +19,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Logo } from "./Logo";
-import { listSurveys } from "@/lib/surveys.functions";
+import { listRecentSurveys } from "@/lib/surveys.functions";
 
 const authRouteApi = getRouteApi("/_authenticated");
 
@@ -59,13 +59,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const ctx = authRouteApi.useRouteContext();
   const email = ctx.user?.email ?? null;
-  const fetchList = useServerFn(listSurveys);
-  const { data: surveys } = useQuery({
-    queryKey: ["surveys"],
-    queryFn: () => fetchList(),
-    staleTime: 30_000,
+  const fetchRecents = useServerFn(listRecentSurveys);
+  const { data: recents = [] } = useQuery({
+    queryKey: ["surveys", "recents", 5],
+    queryFn: () => fetchRecents({ data: { limit: 5 } }),
+    staleTime: 60_000,
   });
-  const recents = (surveys ?? []).slice(0, 5);
 
   async function signOut() {
     await qc.cancelQueries();

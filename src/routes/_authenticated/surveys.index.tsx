@@ -62,28 +62,32 @@ function SurveysIndex() {
   const qc = useQueryClient();
   const fetchList = useServerFn(listSurveys);
   const createFn = useServerFn(createSurvey);
-  const { data, isLoading } = useQuery({
-    queryKey: ["surveys"],
-    queryFn: () => fetchList(),
+  const PAGE = 24;
+  const [page, setPage] = useState(0);
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["surveys", { page, size: PAGE }],
+    queryFn: () => fetchList({ data: { limit: PAGE, offset: page * PAGE } }),
     staleTime: 30_000,
   });
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
 
   const [filter, setFilter] = useState<Filter>("all");
   const counts = useMemo(() => {
     const c = { all: 0, draft: 0, live: 0, closed: 0 } as Record<Filter, number>;
-    (data ?? []).forEach((s) => {
+    rows.forEach((s) => {
       c.all++;
       c[s.status]++;
     });
     return c;
-  }, [data]);
+  }, [rows]);
   const liveSurveys = useMemo(
-    () => (data ?? []).filter((s) => s.status === "live"),
-    [data],
+    () => rows.filter((s) => s.status === "live"),
+    [rows],
   );
   const filtered = useMemo(
-    () => (data ?? []).filter((s) => (filter === "all" ? true : s.status === filter)),
-    [data, filter],
+    () => rows.filter((s) => (filter === "all" ? true : s.status === filter)),
+    [rows, filter],
   );
 
   const create = useMutation({
@@ -203,7 +207,7 @@ function SurveysIndex() {
                   Drafts, launched surveys, and feedback flows live here.
                 </p>
               </div>
-              {data && data.length > 0 && (
+              {rows.length > 0 && (
                 <Link
                   to="/dashboard"
                   className="text-xs text-muted-foreground hover:text-foreground"
@@ -243,7 +247,7 @@ function SurveysIndex() {
                     <div key={i} className="h-32 animate-pulse rounded-2xl border border-border bg-card/40" />
                   ))}
                 </div>
-              ) : !data || data.length === 0 ? (
+              ) : rows.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border bg-card/30 px-6 py-8 text-center text-sm text-muted-foreground">
                   Your composed surveys will appear here.
                 </div>
@@ -292,6 +296,32 @@ function SurveysIndex() {
                 </div>
               )}
             </div>
+
+            {total > PAGE && (
+              <div className="mt-6 flex items-center justify-between text-xs text-muted-foreground">
+                <span className="font-mono">
+                  {page * PAGE + 1}–{Math.min((page + 1) * PAGE, total)} of {total}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0 || isFetching}
+                    className="rounded-full border border-border bg-card/40 px-3 py-1.5 transition-colors hover:text-foreground disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={(page + 1) * PAGE >= total || isFetching}
+                    className="rounded-full border border-border bg-card/40 px-3 py-1.5 transition-colors hover:text-foreground disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
