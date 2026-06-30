@@ -37,6 +37,7 @@ function PublicSurvey() {
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
   const token = useMemo(() => {
     if (typeof window === "undefined") return "ssr";
@@ -53,14 +54,18 @@ function PublicSurvey() {
     return r.id;
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(overrideValue?: unknown) {
     if (submittingRef.current) return;
     const q = questions[index];
     if (!q) return;
-    const value = answers[q.id];
+    const value = overrideValue !== undefined ? overrideValue : answers[q.id];
     if (q.required && (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0))) return;
     submittingRef.current = true;
     setSubmitting(true);
+    setError(null);
+    if (overrideValue !== undefined) {
+      setAnswers((a) => ({ ...a, [q.id]: overrideValue }));
+    }
     try {
       const rid = await ensureResponse();
       if (value !== undefined && value !== null && value !== "") {
@@ -72,6 +77,8 @@ function PublicSurvey() {
       } else {
         setIndex((i) => i + 1);
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -132,9 +139,14 @@ function PublicSurvey() {
                   config={(questions[index].config ?? {}) as never}
                   value={answers[questions[index].id]}
                   onChange={(v) => setAnswers((a) => ({ ...a, [questions[index].id]: v }))}
-                  onSubmit={handleSubmit}
+                  onSubmit={(v) => handleSubmit(v)}
                 />
               </div>
+              {error && (
+                <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
               <div className="mt-10 flex items-center justify-between">
                 <button
                   disabled={index === 0}
@@ -144,7 +156,7 @@ function PublicSurvey() {
                   ← Back
                 </button>
                 <button
-                  onClick={handleSubmit}
+                  onClick={() => handleSubmit()}
                   disabled={submitting}
                   className="inline-flex items-center gap-2 rounded-full bg-signal px-5 py-2.5 text-sm font-medium text-signal-foreground disabled:opacity-50"
                 >
