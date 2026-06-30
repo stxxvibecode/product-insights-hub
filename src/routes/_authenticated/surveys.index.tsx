@@ -207,7 +207,7 @@ function SurveysIndex() {
                   Drafts, launched surveys, and feedback flows live here.
                 </p>
               </div>
-              {data && data.length > 0 && (
+              {rows.length > 0 && (
                 <Link
                   to="/dashboard"
                   className="text-xs text-muted-foreground hover:text-foreground"
@@ -247,7 +247,7 @@ function SurveysIndex() {
                     <div key={i} className="h-32 animate-pulse rounded-2xl border border-border bg-card/40" />
                   ))}
                 </div>
-              ) : !data || data.length === 0 ? (
+              ) : rows.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border bg-card/30 px-6 py-8 text-center text-sm text-muted-foreground">
                   Your composed surveys will appear here.
                 </div>
