@@ -1,22 +1,35 @@
-The user wants to remove the chat box from the survey builder and use a manual builder instead. The existing `/surveys/$id/edit` route already has a full manual builder (drag-and-drop question list, live preview, inspector panel). The plan is to redirect the survey composer (`/surveys/$id`) to the manual editor (`/surveys/$id/edit`) and keep the AI prompt composer on the surveys index (`/surveys`) for creating new surveys.
+## Why it feels slow
 
-### What to change
+Network log on `/surveys` shows three sequential `GET /auth/v1/user` calls (~1s each) before any data renders, then the server-fn for surveys. Causes:
 
-1. **Redirect `/surveys/$id` to `/surveys/$id/edit`**
-   - Update `src/routes/_authenticated/surveys.$id.tsx` to redirect to the edit route so the chat builder is no longer accessible.
+1. `src/routes/_authenticated/route.tsx` `beforeLoad` calls `supabase.auth.getUser()` on every route match (default `staleTime: 0`). Every navigation = a network round trip to Supabase Auth before the page mounts.
+2. `src/components/AppShell.tsx` runs another `supabase.auth.getUser()` in `useEffect` just to display the email.
+3. `RootComponent` calls `router.invalidate()` on `SIGNED_IN` / `USER_UPDATED`, which re-triggers `beforeLoad` → another `getUser` round trip.
+4. `listSurveys` query has no `staleTime`, so the sidebar Recents refetches on every page (already shared cache key — just needs freshness).
 
-2. **Update the survey card links**
-   - In `src/routes/_authenticated/surveys.index.tsx`, change the survey card links from `/surveys/$id` to `/surveys/$id/edit` so users land in the manual builder.
+## Fix (frontend-only, no schema changes)
 
-3. **Clean up unused chat builder code**
-   - Remove the chat UI imports, `useChat`, `Conversation`, `PromptInput`, message rendering, and tool-call handling from the old survey composer file (or replace the whole file with a redirect).
-   - Keep the server route `src/routes/api/chat.surveys.$id.ts` since the `/surveys` index still uses AI to seed new surveys.
+1. **Auth gate — use local session, not network**
+   - In `src/routes/_authenticated/route.tsx`: replace `supabase.auth.getUser()` with `supabase.auth.getSession()` (reads localStorage, no network). Redirect to `/auth` only if no session.
+   - Return `{ user: session.user }` into context.
+   - Add `staleTime: 5 * 60_000` on the route so `beforeLoad` is not re-run on every match.
 
-4. **Preserve AI creation on `/surveys`**
-   - The prompt input on the surveys index page stays as-is — users describe what they want, the AI drafts the survey, and they land in the manual builder to refine it.
+2. **AppShell — read user from route context**
+   - Remove the `useEffect` + `getUser` call. Pull the email from `Route.useRouteContext()` (or a `getRouteApi("/_authenticated").useRouteContext()`).
 
-### What stays the same
-- The surveys index (`/surveys`) with its AI prompt composer and template chips.
-- The manual editor (`/surveys/$id/edit`) with its drag-and-drop, inspector, preview, insights, and share tabs.
-- Theme customization in the manual builder.
-- The AI chat server route (used by the index page to generate surveys).
+3. **Root auth listener — narrower invalidation**
+   - In `src/routes/__root.tsx`, on `SIGNED_IN` / `SIGNED_OUT` only call `queryClient.invalidateQueries()`; skip `router.invalidate()` on `USER_UPDATED` (token refresh-ish events shouldn't re-run loaders). On `SIGNED_OUT`, navigate to `/auth` directly instead of relying on a re-run of `beforeLoad`.
+
+4. **Stabilize survey list cache**
+   - In `AppShell` and `src/routes/_authenticated/surveys.index.tsx`, give the `["surveys"]` query a `staleTime: 30_000` so the sidebar and surveys page share fresh cached data instead of refetching on navigation.
+
+5. **Font loading (small win)**
+   - Add `media="print" onLoad="this.media='all'"` style async load is not worth the complexity here; keep `display=swap` (already set) and just add a `rel="preload"` for the stylesheet `as="style"` link in `__root.tsx` to remove the render-blocking on first paint.
+
+## Out of scope
+
+No backend changes, no schema changes, no new dependencies. Public respondent view (`/s/...`) is already light and not touched.
+
+## Expected impact
+
+First paint after sign-in: drops from ~3s (3× auth/user) to <300ms (one local session read). Navigating between Dashboard / Surveys / Reports becomes instant since `beforeLoad` is cached and the surveys query is fresh for 30s.

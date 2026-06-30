@@ -169,7 +169,7 @@ function Sidebar({
               return (
                 <Link
                   key={s.id}
-                  to="/surveys/$id/edit"
+                  to="/surveys/$id"
                   params={{ id: s.id }}
                   className="group flex items-center gap-2.5 truncate rounded-lg px-2.5 py-1.5 text-[13px] transition-colors"
                   style={{

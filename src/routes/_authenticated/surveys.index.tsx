@@ -92,10 +92,14 @@ function SurveysIndex() {
 
   const create = useMutation({
     mutationFn: (prompt: string) =>
-      createFn({ data: { title: titleFromPrompt(prompt) } }).then((s) => s),
-    onSuccess: (s) => {
+      createFn({ data: { title: titleFromPrompt(prompt) } }).then((s) => ({ s, prompt })),
+    onSuccess: ({ s, prompt }) => {
       qc.invalidateQueries({ queryKey: ["surveys"] });
-      navigate({ to: "/surveys/$id/edit", params: { id: s.id } });
+      navigate({
+        to: "/surveys/$id",
+        params: { id: s.id },
+        search: prompt.trim() ? { prompt: prompt.trim() } : {},
+      });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't create"),
   });
@@ -256,7 +260,7 @@ function SurveysIndex() {
                   {filtered.map((s) => {
                     const action = s.status === "draft" ? "Open" : "View insights";
                     return (
-                      <Link key={s.id} to="/surveys/$id/edit" params={{ id: s.id }} className="group">
+                      <Link key={s.id} to="/surveys/$id" params={{ id: s.id }} className="group">
                         <div className="flex h-full flex-col rounded-2xl border border-border bg-card/80 p-5 transition-colors group-hover:border-signal/40 group-hover:bg-card">
                           <div className="flex items-center justify-between">
                             <StatusPill status={s.status} />
@@ -392,7 +396,7 @@ function LiveSurveyCard({ survey }: { survey: SurveyRow }) {
 
       <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs">
         <Link
-          to="/surveys/$id/edit"
+          to="/surveys/$id"
           params={{ id: survey.id }}
           className="text-muted-foreground transition-colors hover:text-foreground"
         >
