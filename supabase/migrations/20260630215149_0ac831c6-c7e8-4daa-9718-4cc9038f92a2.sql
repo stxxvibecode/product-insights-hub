@@ -1,0 +1,2 @@
+CREATE OR REPLACE FUNCTION public.whoami() RETURNS json LANGUAGE sql STABLE AS $$ SELECT json_build_object('current_user', current_user, 'session_user', session_user, 'role', current_setting('role', true), 'jwt_role', current_setting('request.jwt.claim.role', true)); $$;
+GRANT EXECUTE ON FUNCTION public.whoami() TO anon, authenticated;
