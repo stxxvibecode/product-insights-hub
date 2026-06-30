@@ -392,7 +392,7 @@ function LiveSurveyCard({ survey }: { survey: SurveyRow }) {
 
       <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs">
         <Link
-          to="/surveys/$id"
+          to="/surveys/$id/edit"
           params={{ id: survey.id }}
           className="text-muted-foreground transition-colors hover:text-foreground"
         >
