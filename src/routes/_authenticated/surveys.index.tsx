@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
 import { ArrowUpRight } from "lucide-react";
@@ -10,7 +11,6 @@ import {
   PromptInput,
   PromptInputTextarea,
   PromptInputFooter,
-  PromptInputSubmit,
 } from "@/components/ai-elements/prompt-input";
 
 export const Route = createFileRoute("/_authenticated/surveys/")({
@@ -19,12 +19,36 @@ export const Route = createFileRoute("/_authenticated/surveys/")({
 });
 
 const STARTERS = [
-  "Post-purchase NPS for our SaaS",
-  "Onboarding pulse for new signups",
-  "Win/loss interview for churned trials",
-  "Feature prioritization for top 50 customers",
+  "Post-purchase NPS",
+  "New user onboarding pulse",
+  "Win/loss interview",
+  "Feature prioritization",
   "Dashboard redesign feedback",
 ];
+
+type Filter = "all" | "draft" | "live" | "closed";
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "draft", label: "Drafts" },
+  { id: "live", label: "Live" },
+  { id: "closed", label: "Completed" },
+];
+
+function formatRelative(date: string | Date) {
+  const t = typeof date === "string" ? new Date(date).getTime() : date.getTime();
+  const diff = Date.now() - t;
+  const s = Math.round(diff / 1000);
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  if (d < 7) return `${d}d ago`;
+  const w = Math.round(d / 7);
+  if (w < 5) return `${w}w ago`;
+  return new Date(t).toLocaleDateString();
+}
 
 function titleFromPrompt(prompt: string) {
   const t = prompt.trim().replace(/\s+/g, " ");
@@ -39,6 +63,20 @@ function SurveysIndex() {
   const fetchList = useServerFn(listSurveys);
   const createFn = useServerFn(createSurvey);
   const { data, isLoading } = useQuery({ queryKey: ["surveys"], queryFn: () => fetchList() });
+
+  const [filter, setFilter] = useState<Filter>("all");
+  const counts = useMemo(() => {
+    const c = { all: 0, draft: 0, live: 0, closed: 0 } as Record<Filter, number>;
+    (data ?? []).forEach((s) => {
+      c.all++;
+      c[s.status]++;
+    });
+    return c;
+  }, [data]);
+  const filtered = useMemo(
+    () => (data ?? []).filter((s) => (filter === "all" ? true : s.status === filter)),
+    [data, filter],
+  );
 
   const create = useMutation({
     mutationFn: (prompt: string) =>
@@ -60,22 +98,22 @@ function SurveysIndex() {
         {/* Soft signal glow behind the hero */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[640px] bg-[radial-gradient(circle_at_50%_18%,rgba(255,122,69,0.16),transparent_60%)]"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[520px] bg-[radial-gradient(circle_at_50%_12%,rgba(255,122,69,0.12),transparent_60%)]"
         />
-        <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col px-6 pt-24 pb-16">
+        <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col px-6 pt-12 pb-16">
           <div className="flex flex-col items-center text-center">
-            <img src={agentMark} alt="" className="h-10 w-10 rounded-xl shadow-sm" />
-            <h1 className="mt-6 font-display text-4xl font-semibold leading-tight tracking-tight text-balance md:text-5xl">
-              What do you want to learn<br />from your users?
+            <img src={agentMark} alt="" className="h-8 w-8 rounded-xl shadow-sm" />
+            <h1 className="mt-5 font-display text-3xl font-semibold leading-tight tracking-tight text-balance md:text-4xl">
+              What do you want to learn today?
             </h1>
-            <p className="mt-3 max-w-md text-sm text-muted-foreground text-pretty">
-              Describe the survey and Insightform composes the questions, tags themes, and feeds every answer into your source of truth.
+            <p className="mt-3 max-w-xl text-sm text-muted-foreground text-pretty">
+              Describe the feedback you need. Insightform will draft the survey, apply tags, and organize responses into your source of truth.
             </p>
           </div>
 
-          <div className="mt-10">
+          <div className="mx-auto mt-8 w-full max-w-3xl">
             <PromptInput
-              className="rounded-2xl border-border bg-card/80 shadow-[0_30px_80px_-40px_rgba(255,122,69,0.35)] backdrop-blur"
+              className="rounded-2xl border-border bg-card/80 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur focus-within:border-signal/40 focus-within:ring-1 focus-within:ring-signal/30"
               onSubmit={async (msg) => {
                 const text = msg.text?.trim();
                 if (!text) return;
@@ -83,43 +121,50 @@ function SurveysIndex() {
               }}
             >
               <PromptInputTextarea
-                placeholder="e.g. Post-purchase NPS for our SaaS, with two follow-ups on pricing and onboarding."
-                className="min-h-[140px] text-base"
+                placeholder="Example: Create a post-purchase NPS survey with follow-up questions about pricing, onboarding, and product value."
+                className="min-h-[160px] text-base"
               />
               <PromptInputFooter className="justify-between">
                 <span className="px-2 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                   Press <kbd className="rounded border border-border px-1 py-0.5">⏎</kbd> to compose
                 </span>
-                <PromptInputSubmit
-                  status={create.isPending ? "submitted" : undefined}
+                <button
+                  type="submit"
                   disabled={create.isPending}
-                />
+                  className="inline-flex items-center gap-1.5 rounded-full bg-signal px-4 py-2 text-sm font-medium text-signal-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+                >
+                  {create.isPending ? "Composing…" : "Compose"}
+                  <ArrowUpRight className="h-4 w-4" />
+                </button>
               </PromptInputFooter>
             </PromptInput>
 
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-              {STARTERS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => create.mutate(s)}
-                  disabled={create.isPending}
-                  className="rounded-full border border-border bg-card/40 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-signal/40 hover:bg-card hover:text-foreground disabled:opacity-50"
-                >
-                  {s}
-                </button>
-              ))}
+            <div className="mt-5">
+              <div className="text-center text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                Start with a template
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                {STARTERS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => create.mutate(s)}
+                    disabled={create.isPending}
+                    className="rounded-full border border-border bg-card/40 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-signal/40 hover:bg-card hover:text-foreground disabled:opacity-50"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Library */}
-          <div className="mt-20">
-            <div className="flex items-end justify-between">
+          <div className="mt-12 border-t border-border/60 pt-8">
+            <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Library · Your surveys
-                </div>
+                <h2 className="font-display text-xl font-semibold tracking-tight">Your surveys</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Every response feeds the source of truth.
+                  Drafts, launched surveys, and feedback flows live here.
                 </p>
               </div>
               {data && data.length > 0 && (
@@ -132,7 +177,30 @@ function SurveysIndex() {
               )}
             </div>
 
-            <div className="mt-5">
+            <div className="mt-5 flex flex-wrap items-center gap-1.5">
+              {FILTERS.map((f) => {
+                const active = filter === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => setFilter(f.id)}
+                    className={
+                      "rounded-full border px-3 py-1.5 text-xs transition-colors " +
+                      (active
+                        ? "border-signal/50 bg-card text-foreground"
+                        : "border-border bg-card/30 text-muted-foreground hover:text-foreground")
+                    }
+                  >
+                    {f.label}
+                    <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">
+                      {counts[f.id]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4">
               {isLoading ? (
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -143,26 +211,48 @@ function SurveysIndex() {
                 <div className="rounded-2xl border border-dashed border-border bg-card/30 px-6 py-8 text-center text-sm text-muted-foreground">
                   Your composed surveys will appear here.
                 </div>
+              ) : filtered.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border bg-card/30 px-6 py-8 text-center text-sm text-muted-foreground">
+                  No surveys in this view yet.
+                </div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {data.map((s) => (
-                    <Link key={s.id} to="/surveys/$id" params={{ id: s.id }} className="group">
-                      <div className="rounded-2xl border border-border bg-card p-5 transition-colors group-hover:border-signal/40">
-                        <div className="flex items-center justify-between">
-                          <StatusPill status={s.status} />
-                          <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
+                  {filtered.map((s) => {
+                    const action = s.status === "draft" ? "Open" : "View insights";
+                    return (
+                      <Link key={s.id} to="/surveys/$id" params={{ id: s.id }} className="group">
+                        <div className="flex h-full flex-col rounded-2xl border border-border bg-card/80 p-5 transition-colors group-hover:border-signal/40 group-hover:bg-card">
+                          <div className="flex items-center justify-between">
+                            <StatusPill status={s.status} />
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              Updated {formatRelative(s.updated_at)}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 truncate font-display text-base font-medium leading-snug">
+                            {s.title}
+                          </h3>
+                          {s.description ? (
+                            <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                              {s.description}
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-xs text-muted-foreground/60">No description</p>
+                          )}
+                          <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs">
+                            <span className="text-muted-foreground">
+                              {s.response_count === 0
+                                ? "No responses yet"
+                                : `${s.response_count} response${s.response_count === 1 ? "" : "s"}`}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-foreground/80 transition-colors group-hover:text-signal">
+                              {action}
+                              <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                            </span>
+                          </div>
                         </div>
-                        <h3 className="mt-3 font-display text-base font-medium leading-snug">{s.title}</h3>
-                        {s.description && (
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{s.description}</p>
-                        )}
-                        <div className="mt-4 flex items-center justify-between font-mono text-[11px] text-muted-foreground">
-                          <span>{s.response_count} responses</span>
-                          <span>{new Date(s.updated_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
