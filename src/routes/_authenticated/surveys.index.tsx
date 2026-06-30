@@ -256,7 +256,7 @@ function SurveysIndex() {
                   {filtered.map((s) => {
                     const action = s.status === "draft" ? "Open" : "View insights";
                     return (
-                      <Link key={s.id} to="/surveys/$id" params={{ id: s.id }} className="group">
+                      <Link key={s.id} to="/surveys/$id/edit" params={{ id: s.id }} className="group">
                         <div className="flex h-full flex-col rounded-2xl border border-border bg-card/80 p-5 transition-colors group-hover:border-signal/40 group-hover:bg-card">
                           <div className="flex items-center justify-between">
                             <StatusPill status={s.status} />
