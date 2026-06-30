@@ -62,28 +62,32 @@ function SurveysIndex() {
   const qc = useQueryClient();
   const fetchList = useServerFn(listSurveys);
   const createFn = useServerFn(createSurvey);
-  const { data, isLoading } = useQuery({
-    queryKey: ["surveys"],
-    queryFn: () => fetchList(),
+  const PAGE = 24;
+  const [page, setPage] = useState(0);
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["surveys", { page, size: PAGE }],
+    queryFn: () => fetchList({ data: { limit: PAGE, offset: page * PAGE } }),
     staleTime: 30_000,
   });
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
 
   const [filter, setFilter] = useState<Filter>("all");
   const counts = useMemo(() => {
     const c = { all: 0, draft: 0, live: 0, closed: 0 } as Record<Filter, number>;
-    (data ?? []).forEach((s) => {
+    rows.forEach((s) => {
       c.all++;
       c[s.status]++;
     });
     return c;
-  }, [data]);
+  }, [rows]);
   const liveSurveys = useMemo(
-    () => (data ?? []).filter((s) => s.status === "live"),
-    [data],
+    () => rows.filter((s) => s.status === "live"),
+    [rows],
   );
   const filtered = useMemo(
-    () => (data ?? []).filter((s) => (filter === "all" ? true : s.status === filter)),
-    [data, filter],
+    () => rows.filter((s) => (filter === "all" ? true : s.status === filter)),
+    [rows, filter],
   );
 
   const create = useMutation({
