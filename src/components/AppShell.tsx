@@ -4,7 +4,6 @@ import {
   Activity,
   ChevronDown,
   FileText,
-  Home,
   LayoutGrid,
   List,
   LogOut,
@@ -39,9 +38,8 @@ type NavItem = {
 };
 
 const MAIN: NavItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: Home, exact: true },
   { to: "/surveys", label: "Compose", icon: Sparkles },
-  { to: "/dashboard", label: "Source of truth", icon: Activity },
+  { to: "/dashboard", label: "Dashboard", icon: Activity, exact: true },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/integrations", label: "Integrations", icon: Plug },
 ];
@@ -77,12 +75,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   function isActive(item: NavItem, index: number, group: NavItem[]) {
-    // "Compose" (first /surveys in MAIN) is active on /surveys (not detail pages)
     if (item.label === "Compose") return pathname === "/surveys";
-    // "Surveys" in RESEARCH covers /surveys and detail routes
     if (item.label === "Surveys") return pathname.startsWith("/surveys");
-    // "Source of truth" is dashboard but distinguish from "Dashboard" by label only
-    if (item.label === "Source of truth") return false; // visual cue only; Dashboard wins
     if (item.exact) return pathname === item.to;
     return pathname === item.to || pathname.startsWith(item.to + "/");
   }

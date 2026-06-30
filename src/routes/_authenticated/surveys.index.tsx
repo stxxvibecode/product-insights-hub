@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Copy, Radio } from "lucide-react";
 import { toast } from "sonner";
 import agentMark from "@/assets/agent-mark.png";
 import {
@@ -73,6 +73,10 @@ function SurveysIndex() {
     });
     return c;
   }, [data]);
+  const liveSurveys = useMemo(
+    () => (data ?? []).filter((s) => s.status === "live"),
+    [data],
+  );
   const filtered = useMemo(
     () => (data ?? []).filter((s) => (filter === "all" ? true : s.status === filter)),
     [data, filter],
@@ -157,6 +161,34 @@ function SurveysIndex() {
               </div>
             </div>
           </div>
+
+          {/* Live now */}
+          {liveSurveys.length > 0 && (
+            <div className="mt-12">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="relative grid h-6 w-6 place-items-center rounded-md bg-emerald-400/10">
+                      <span className="absolute inset-0 animate-ping rounded-md bg-emerald-400/30" />
+                      <Radio className="relative h-3 w-3 text-emerald-400" strokeWidth={2.25} />
+                    </span>
+                    <h2 className="font-display text-xl font-semibold tracking-tight">Live now</h2>
+                    <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-300">
+                      {liveSurveys.length}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Surveys currently collecting responses from your audience.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {liveSurveys.map((s) => (
+                  <LiveSurveyCard key={s.id} survey={s} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Library */}
           <div className="mt-12 border-t border-border/60 pt-8">
@@ -274,5 +306,77 @@ function StatusPill({ status }: { status: "draft" | "live" | "closed" }) {
     <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/40 px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
       <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} /> {m.label}
     </span>
+  );
+}
+
+type SurveyRow = {
+  id: string;
+  title: string;
+  slug: string;
+  status: "draft" | "live" | "closed";
+  updated_at: string;
+  response_count: number;
+};
+
+function LiveSurveyCard({ survey }: { survey: SurveyRow }) {
+  const url =
+    typeof window === "undefined"
+      ? `/s/${survey.slug}`
+      : `${window.location.origin}/s/${survey.slug}`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Public link copied");
+    } catch {
+      toast.error("Couldn't copy link");
+    }
+  }
+
+  return (
+    <div className="group flex h-full flex-col rounded-2xl border border-emerald-400/20 bg-card/80 p-5 transition-colors hover:border-emerald-400/40">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] text-emerald-300">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Live
+        </span>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {survey.response_count === 0
+            ? "No responses"
+            : `${survey.response_count} response${survey.response_count === 1 ? "" : "s"}`}
+        </span>
+      </div>
+      <h3 className="mt-3 truncate font-display text-base font-medium leading-snug">{survey.title}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Live since {formatRelative(survey.updated_at)}
+      </p>
+
+      <button
+        type="button"
+        onClick={copy}
+        className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:border-emerald-400/40 hover:text-foreground"
+        title="Copy public link"
+      >
+        <Copy className="h-3 w-3 shrink-0" />
+        <span className="truncate font-mono">/s/{survey.slug}</span>
+      </button>
+
+      <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs">
+        <Link
+          to="/surveys/$id"
+          params={{ id: survey.id }}
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          View insights
+        </Link>
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 font-medium text-emerald-300 transition-colors hover:text-emerald-200"
+        >
+          Open survey <ArrowUpRight className="h-3.5 w-3.5" />
+        </a>
+      </div>
+    </div>
   );
 }
