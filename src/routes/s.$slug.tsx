@@ -69,7 +69,7 @@ function PublicSurvey() {
     try {
       const rid = await ensureResponse();
       if (value !== undefined && value !== null && value !== "") {
-        await submit({ data: { response_id: rid, question_id: q.id, value } });
+        await submit({ data: { response_id: rid, question_id: q.id, respondent_token: token, value } });
       }
       if (index === questions.length - 1) {
         await complete({ data: { response_id: rid } });

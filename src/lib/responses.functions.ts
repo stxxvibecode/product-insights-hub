@@ -45,18 +45,40 @@ export const startResponse = createServerFn({ method: "POST" })
   });
 
 export const submitAnswer = createServerFn({ method: "POST" })
-  .inputValidator((d: { response_id: string; question_id: string; value: unknown }) =>
+  .inputValidator((d: { response_id: string; question_id: string; respondent_token: string; value: unknown }) =>
     z
       .object({
         response_id: z.string().uuid(),
         question_id: z.string().uuid(),
+        respondent_token: z.string().min(8).max(80),
         value: z.unknown(),
       })
       .parse(d),
   )
   .handler(async ({ data }) => {
-    const supabase = publicClient();
-    const { error } = await supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: response, error: responseError } = await supabaseAdmin
+      .from("responses")
+      .select("survey_id, respondent_token, surveys!inner(status)")
+      .eq("id", data.response_id)
+      .maybeSingle();
+    if (responseError) throw new Error(responseError.message);
+    if (!response || response.respondent_token !== data.respondent_token || response.surveys.status !== "live") {
+      throw new Error("Response not found or survey is not live.");
+    }
+
+    const { data: question, error: questionError } = await supabaseAdmin
+      .from("questions")
+      .select("survey_id")
+      .eq("id", data.question_id)
+      .maybeSingle();
+    if (questionError) throw new Error(questionError.message);
+    if (!question || question.survey_id !== response.survey_id) {
+      throw new Error("Question does not belong to this survey.");
+    }
+
+    const { error } = await supabaseAdmin
       .from("answers")
       .upsert(
         {
