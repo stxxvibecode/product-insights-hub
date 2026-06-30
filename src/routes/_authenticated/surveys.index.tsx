@@ -92,14 +92,10 @@ function SurveysIndex() {
 
   const create = useMutation({
     mutationFn: (prompt: string) =>
-      createFn({ data: { title: titleFromPrompt(prompt) } }).then((s) => ({ s, prompt })),
-    onSuccess: ({ s, prompt }) => {
+      createFn({ data: { title: titleFromPrompt(prompt) } }).then((s) => s),
+    onSuccess: (s) => {
       qc.invalidateQueries({ queryKey: ["surveys"] });
-      navigate({
-        to: "/surveys/$id",
-        params: { id: s.id },
-        search: prompt.trim() ? { prompt: prompt.trim() } : {},
-      });
+      navigate({ to: "/surveys/$id/edit", params: { id: s.id } });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't create"),
   });
