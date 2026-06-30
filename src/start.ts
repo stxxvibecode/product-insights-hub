@@ -39,17 +39,27 @@ const serverTimingMiddleware = createMiddleware().server(async ({ next, request 
 
 // Logs every server-function call with duration + handler name.
 const fnTimingMiddleware = createMiddleware({ type: "function" }).server(
-  async ({ next, functionId }) => {
+  async ({ next }) => {
     const start = Date.now();
+    // Pull a label off the active request URL since FunctionMiddleware doesn't
+    // expose the function id directly.
+    let label = "server-fn";
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const req = getRequest();
+      label = new URL(req.url).pathname;
+    } catch {
+      // not in a request context — keep default label
+    }
     try {
       const result = await next();
       const ms = Date.now() - start;
       const tag = ms > 800 ? "SLOW" : ms > 300 ? "warn" : "ok";
-      console.log(`[perf:fn] ${tag} ${ms}ms ${functionId ?? "fn"}`);
+      console.log(`[perf:fn] ${tag} ${ms}ms ${label}`);
       return result;
     } catch (err) {
       const ms = Date.now() - start;
-      console.log(`[perf:fn] ERR ${ms}ms ${functionId ?? "fn"}`);
+      console.log(`[perf:fn] ERR ${ms}ms ${label}`);
       throw err;
     }
   },
