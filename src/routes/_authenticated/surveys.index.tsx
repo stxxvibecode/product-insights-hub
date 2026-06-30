@@ -308,3 +308,75 @@ function StatusPill({ status }: { status: "draft" | "live" | "closed" }) {
     </span>
   );
 }
+
+type SurveyRow = {
+  id: string;
+  title: string;
+  slug: string;
+  status: "draft" | "live" | "closed";
+  updated_at: string;
+  response_count: number;
+};
+
+function LiveSurveyCard({ survey }: { survey: SurveyRow }) {
+  const url =
+    typeof window === "undefined"
+      ? `/s/${survey.slug}`
+      : `${window.location.origin}/s/${survey.slug}`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Public link copied");
+    } catch {
+      toast.error("Couldn't copy link");
+    }
+  }
+
+  return (
+    <div className="group flex h-full flex-col rounded-2xl border border-emerald-400/20 bg-card/80 p-5 transition-colors hover:border-emerald-400/40">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] text-emerald-300">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Live
+        </span>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {survey.response_count === 0
+            ? "No responses"
+            : `${survey.response_count} response${survey.response_count === 1 ? "" : "s"}`}
+        </span>
+      </div>
+      <h3 className="mt-3 truncate font-display text-base font-medium leading-snug">{survey.title}</h3>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Live since {formatRelative(survey.updated_at)}
+      </p>
+
+      <button
+        type="button"
+        onClick={copy}
+        className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:border-emerald-400/40 hover:text-foreground"
+        title="Copy public link"
+      >
+        <Copy className="h-3 w-3 shrink-0" />
+        <span className="truncate font-mono">/s/{survey.slug}</span>
+      </button>
+
+      <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs">
+        <Link
+          to="/surveys/$id"
+          params={{ id: survey.id }}
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          View insights
+        </Link>
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 font-medium text-emerald-300 transition-colors hover:text-emerald-200"
+        >
+          Open survey <ArrowUpRight className="h-3.5 w-3.5" />
+        </a>
+      </div>
+    </div>
+  );
+}
