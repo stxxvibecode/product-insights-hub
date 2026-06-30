@@ -5,25 +5,54 @@ import { makeSlug } from "./slug";
 
 export const listSurveys = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+  .inputValidator((d?: { limit?: number; offset?: number; status?: "draft" | "live" | "closed" }) =>
+    z
+      .object({
+        limit: z.number().int().min(1).max(100).optional(),
+        offset: z.number().int().min(0).optional(),
+        status: z.enum(["draft", "live", "closed"]).optional(),
+      })
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const limit = data.limit ?? 50;
+    const offset = data.offset ?? 0;
+    let q = context.supabase
       .from("surveys")
-      .select("id, title, description, slug, status, created_at, updated_at")
-      .order("updated_at", { ascending: false });
+      .select("id, title, description, slug, status, updated_at", { count: "exact" })
+      .order("updated_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (data.status) q = q.eq("status", data.status);
+    const { data: rows, error, count } = await q;
     if (error) throw new Error(error.message);
-    // Counts in a follow-up call (RLS-safe simple aggregate per survey)
-    const ids = (data ?? []).map((s) => s.id);
-    let counts: Record<string, number> = {};
+    const ids = (rows ?? []).map((s) => s.id);
+    const counts: Record<string, number> = {};
     if (ids.length) {
       const { data: resp } = await context.supabase
         .from("responses")
         .select("survey_id")
         .in("survey_id", ids);
-      for (const r of resp ?? []) {
-        counts[r.survey_id] = (counts[r.survey_id] ?? 0) + 1;
-      }
+      for (const r of resp ?? []) counts[r.survey_id] = (counts[r.survey_id] ?? 0) + 1;
     }
-    return (data ?? []).map((s) => ({ ...s, response_count: counts[s.id] ?? 0 }));
+    const withCounts = (rows ?? []).map((s) => ({ ...s, response_count: counts[s.id] ?? 0 }));
+    return { rows: withCounts, total: count ?? withCounts.length, limit, offset };
+  });
+
+// Lightweight list for sidebar Recents — no counts, minimal columns.
+export const listRecentSurveys = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d?: { limit?: number }) =>
+    z.object({ limit: z.number().int().min(1).max(20).optional() }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const limit = data.limit ?? 5;
+    const { data: rows, error } = await context.supabase
+      .from("surveys")
+      .select("id, title, updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return rows ?? [];
   });
 
 export const createSurvey = createServerFn({ method: "POST" })
