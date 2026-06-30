@@ -1,0 +1,1 @@
+CREATE POLICY "responses_public_select" ON public.responses FOR SELECT TO anon USING (EXISTS (SELECT 1 FROM public.surveys s WHERE s.id = responses.survey_id AND s.status = 'live'));
