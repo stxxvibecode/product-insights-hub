@@ -112,6 +112,30 @@ function Landing() {
         </div>
       </section>
 
+      {/* Trust grid */}
+      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-10">
+        <div className="flex flex-col items-center gap-6">
+          <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Built for product teams everywhere</span>
+          <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12">
+            {[
+              { icon: Cloud, label: "SaaS" },
+              { icon: ShoppingCart, label: "Commerce" },
+              { icon: BarChart3, label: "Analytics" },
+              { icon: Headphones, label: "Support" },
+              { icon: Smartphone, label: "Mobile" },
+              { icon: Layers, label: "Platform" },
+              { icon: ShieldCheck, label: "Security" },
+              { icon: Zap, label: "Operations" },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="flex flex-col items-center gap-2 opacity-60 grayscale transition-opacity hover:opacity-100 hover:grayscale-0">
+                <Icon className="h-6 w-6 text-foreground" />
+                <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Source of truth section */}
       <section id="truth" className="relative z-10 mx-auto max-w-7xl px-6 py-16">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
