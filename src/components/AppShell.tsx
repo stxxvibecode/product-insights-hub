@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState, getRouteApi } from "@tanstack/react-router";
-import { type ReactNode, type ComponentType } from "react";
+import { type ReactNode, type ComponentType, useEffect } from "react";
 import {
   Activity,
   ChevronDown,
@@ -65,6 +65,18 @@ export function AppShell({ children }: { children: ReactNode }) {
     queryFn: () => fetchRecents({ data: { limit: 5 } }),
     staleTime: 60_000,
   });
+
+  // Warm the cache for the most-used routes so navigation feels instant.
+  useEffect(() => {
+    const idle =
+      (window as unknown as { requestIdleCallback?: (cb: () => void) => number })
+        .requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200));
+    idle(() => {
+      void router.preloadRoute({ to: "/dashboard" });
+      void router.preloadRoute({ to: "/reports" });
+      void router.preloadRoute({ to: "/integrations" });
+    });
+  }, [router]);
 
   async function signOut() {
     await qc.cancelQueries();
