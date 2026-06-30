@@ -337,7 +337,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      whoami: { Args: never; Returns: Json }
     }
     Enums: {
       question_type:
