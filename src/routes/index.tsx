@@ -1,5 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowUpRight, Activity, TrendingUp, Sparkles, Tag, Send } from "lucide-react";
+import {
+  ArrowUpRight,
+  Activity,
+  TrendingUp,
+  Sparkles,
+  Tag,
+  Send,
+  Cloud,
+  ShoppingCart,
+  BarChart3,
+  Headphones,
+  Smartphone,
+  Layers,
+  ShieldCheck,
+  Zap,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { Logo } from "@/components/Logo";
 
