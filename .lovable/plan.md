@@ -1,32 +1,35 @@
-# Simplify nav + live-surveys view
+## Why it feels slow
 
-## Sidebar nav changes (`src/components/AppShell.tsx`)
+Network log on `/surveys` shows three sequential `GET /auth/v1/user` calls (~1s each) before any data renders, then the server-fn for surveys. Causes:
 
-Merge "Dashboard" and "Source of truth" into a single item — the dashboard route already *is* the source of truth.
+1. `src/routes/_authenticated/route.tsx` `beforeLoad` calls `supabase.auth.getUser()` on every route match (default `staleTime: 0`). Every navigation = a network round trip to Supabase Auth before the page mounts.
+2. `src/components/AppShell.tsx` runs another `supabase.auth.getUser()` in `useEffect` just to display the email.
+3. `RootComponent` calls `router.invalidate()` on `SIGNED_IN` / `USER_UPDATED`, which re-triggers `beforeLoad` → another `getUser` round trip.
+4. `listSurveys` query has no `staleTime`, so the sidebar Recents refetches on every page (already shared cache key — just needs freshness).
 
-**New Main group (in this order):**
-1. Compose → `Sparkles`, `/surveys`
-2. Dashboard → `Activity`, `/dashboard` (label kept as "Dashboard"; the page itself is the source of truth)
-3. Reports → `FileText`, `/reports`
-4. Integrations → `Plug`, `/integrations`
+## Fix (frontend-only, no schema changes)
 
-**Research group:** unchanged (Surveys, Templates, Audience, Tags).
+1. **Auth gate — use local session, not network**
+   - In `src/routes/_authenticated/route.tsx`: replace `supabase.auth.getUser()` with `supabase.auth.getSession()` (reads localStorage, no network). Redirect to `/auth` only if no session.
+   - Return `{ user: session.user }` into context.
+   - Add `staleTime: 5 * 60_000` on the route so `beforeLoad` is not re-run on every match.
 
-Active-state logic simplifies — no more dual `/dashboard` entries.
+2. **AppShell — read user from route context**
+   - Remove the `useEffect` + `getUser` call. Pull the email from `Route.useRouteContext()` (or a `getRouteApi("/_authenticated").useRouteContext()`).
 
-## Surveys page: surface live surveys (`src/routes/_authenticated/surveys.index.tsx`)
+3. **Root auth listener — narrower invalidation**
+   - In `src/routes/__root.tsx`, on `SIGNED_IN` / `SIGNED_OUT` only call `queryClient.invalidateQueries()`; skip `router.invalidate()` on `USER_UPDATED` (token refresh-ish events shouldn't re-run loaders). On `SIGNED_OUT`, navigate to `/auth` directly instead of relying on a re-run of `beforeLoad`.
 
-The library already lists all surveys with filter tabs. Promote *Live* surveys so they're the first thing a respondent-facing operator sees:
+4. **Stabilize survey list cache**
+   - In `AppShell` and `src/routes/_authenticated/surveys.index.tsx`, give the `["surveys"]` query a `staleTime: 30_000` so the sidebar and surveys page share fresh cached data instead of refetching on navigation.
 
-- Add a **"Live now"** strip above the library, only when at least one survey has `status === "live"`.
-- Renders as horizontally-scrolling cards (or a 1–3 column grid on wider screens) showing: title, response count, public URL pill (copy to clipboard), relative "Live since" timestamp, and a primary "Open survey" link plus a secondary "View insights" link.
-- The existing filter tabs + card grid stay below as the full library.
-- Default filter tab stays "All".
-
-No data-model or backend changes — the `listSurveys` server fn already returns `status` and `response_count`. The public URL is `${origin}/s/${slug}` (slug already on the survey row used by `s.$slug.tsx`).
+5. **Font loading (small win)**
+   - Add `media="print" onLoad="this.media='all'"` style async load is not worth the complexity here; keep `display=swap` (already set) and just add a `rel="preload"` for the stylesheet `as="style"` link in `__root.tsx` to remove the render-blocking on first paint.
 
 ## Out of scope
 
-- No DB migration.
-- No changes to `/dashboard`, `/reports`, `/integrations`, or other placeholder pages.
-- No changes to mobile layout.
+No backend changes, no schema changes, no new dependencies. Public respondent view (`/s/...`) is already light and not touched.
+
+## Expected impact
+
+First paint after sign-in: drops from ~3s (3× auth/user) to <300ms (one local session read). Navigating between Dashboard / Surveys / Reports becomes instant since `beforeLoad` is cached and the surveys query is fresh for 30s.
