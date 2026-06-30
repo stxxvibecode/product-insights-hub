@@ -62,7 +62,11 @@ function SurveysIndex() {
   const qc = useQueryClient();
   const fetchList = useServerFn(listSurveys);
   const createFn = useServerFn(createSurvey);
-  const { data, isLoading } = useQuery({ queryKey: ["surveys"], queryFn: () => fetchList() });
+  const { data, isLoading } = useQuery({
+    queryKey: ["surveys"],
+    queryFn: () => fetchList(),
+    staleTime: 30_000,
+  });
 
   const [filter, setFilter] = useState<Filter>("all");
   const counts = useMemo(() => {
