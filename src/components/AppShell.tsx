@@ -1,5 +1,5 @@
-import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode, type ComponentType } from "react";
+import { Link, useRouter, useRouterState, getRouteApi } from "@tanstack/react-router";
+import { type ReactNode, type ComponentType } from "react";
 import {
   Activity,
   ChevronDown,
@@ -20,6 +20,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Logo } from "./Logo";
 import { listSurveys } from "@/lib/surveys.functions";
+
+const authRouteApi = getRouteApi("/_authenticated");
 
 type IconType = ComponentType<{ className?: string; strokeWidth?: number }>;
 type NavItem = {
@@ -55,17 +57,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [email, setEmail] = useState<string | null>(null);
+  const ctx = authRouteApi.useRouteContext();
+  const email = ctx.user?.email ?? null;
   const fetchList = useServerFn(listSurveys);
   const { data: surveys } = useQuery({
     queryKey: ["surveys"],
     queryFn: () => fetchList(),
+    staleTime: 30_000,
   });
   const recents = (surveys ?? []).slice(0, 5);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-  }, []);
 
   async function signOut() {
     await qc.cancelQueries();
