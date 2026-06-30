@@ -296,6 +296,32 @@ function SurveysIndex() {
                 </div>
               )}
             </div>
+
+            {total > PAGE && (
+              <div className="mt-6 flex items-center justify-between text-xs text-muted-foreground">
+                <span className="font-mono">
+                  {page * PAGE + 1}–{Math.min((page + 1) * PAGE, total)} of {total}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0 || isFetching}
+                    className="rounded-full border border-border bg-card/40 px-3 py-1.5 transition-colors hover:text-foreground disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={(page + 1) * PAGE >= total || isFetching}
+                    className="rounded-full border border-border bg-card/40 px-3 py-1.5 transition-colors hover:text-foreground disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
