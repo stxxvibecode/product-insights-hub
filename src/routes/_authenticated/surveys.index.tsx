@@ -162,6 +162,34 @@ function SurveysIndex() {
             </div>
           </div>
 
+          {/* Live now */}
+          {liveSurveys.length > 0 && (
+            <div className="mt-12">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="relative grid h-6 w-6 place-items-center rounded-md bg-emerald-400/10">
+                      <span className="absolute inset-0 animate-ping rounded-md bg-emerald-400/30" />
+                      <Radio className="relative h-3 w-3 text-emerald-400" strokeWidth={2.25} />
+                    </span>
+                    <h2 className="font-display text-xl font-semibold tracking-tight">Live now</h2>
+                    <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-300">
+                      {liveSurveys.length}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Surveys currently collecting responses from your audience.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {liveSurveys.map((s) => (
+                  <LiveSurveyCard key={s.id} survey={s} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Library */}
           <div className="mt-12 border-t border-border/60 pt-8">
             <div className="flex flex-wrap items-end justify-between gap-3">
