@@ -6,7 +6,6 @@ import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
 import { ArrowUpRight, Check, Copy, Radio, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
 import { CreateEditDraftDialog } from "@/components/edit-draft-modals";
 import agentMark from "@/assets/agent-mark.png";
 import {
