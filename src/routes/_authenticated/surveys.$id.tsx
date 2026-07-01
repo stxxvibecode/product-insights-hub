@@ -380,6 +380,9 @@ function SurveyComposer() {
             slug={survey?.slug ?? null}
             theme={theme}
             onThemeChange={handleThemeChange}
+            welcome={(survey?.welcome_screen ?? null) as WelcomeShape | null}
+            thanks={(survey?.thank_you_screen ?? null) as ThanksShape | null}
+            description={survey?.description ?? null}
             questions={questions.map((q) => ({
               id: q.id,
               type: q.type as QuestionType,
