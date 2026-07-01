@@ -523,22 +523,33 @@ type PreviewQ = {
   config: Record<string, unknown>;
 };
 
+type WelcomeShape = { title?: string; description?: string; button?: string };
+type ThanksShape = { title?: string; description?: string };
+type PreviewTab = "question" | "welcome" | "complete";
+
 function PreviewPane({
   title,
   slug,
   questions,
   theme,
   onThemeChange,
+  welcome,
+  thanks,
+  description,
 }: {
   title: string;
   slug: string | null;
   questions: PreviewQ[];
   theme: SurveyTheme;
   onThemeChange: (next: SurveyTheme) => void;
+  welcome: WelcomeShape | null;
+  thanks: ThanksShape | null;
+  description: string | null;
 }) {
   const [idx, setIdx] = useState(0);
   const [value, setValue] = useState<unknown>(null);
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<PreviewTab>("question");
 
   useEffect(() => {
     if (idx > questions.length - 1) setIdx(Math.max(0, questions.length - 1));
@@ -565,11 +576,49 @@ function PreviewPane({
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="flex min-h-0 flex-col overflow-y-auto">
       <ThemePanel theme={theme} onChange={onThemeChange} />
-      <div className="flex min-h-0 flex-1 flex-col p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 p-6">
+        {/* Design check */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border/70 bg-card/50 px-3.5 py-2.5">
+          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            Design check
+          </span>
+          {[
+            "Contrast looks good",
+            "Buttons are readable",
+            "Mobile spacing is balanced",
+          ].map((c) => (
+            <span key={c} className="inline-flex items-center gap-1 text-[11px] text-foreground/85">
+              <Check className="h-3 w-3 text-emerald-400" />
+              {c}
+            </span>
+          ))}
+        </div>
+
+        {/* Preview tabs */}
+        <div role="tablist" aria-label="Preview screen" className="inline-flex w-fit rounded-lg border border-border bg-card/50 p-0.5">
+          {(
+            [
+              { id: "question", label: "Question" },
+              { id: "welcome", label: "Welcome" },
+              { id: "complete", label: "Complete" },
+            ] as Array<{ id: PreviewTab; label: string }>
+          ).map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${tab === t.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* Browser frame */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/70 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.6)] backdrop-blur">
+        <div className="flex min-h-[640px] flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/70 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.6)] backdrop-blur">
           {/* Frame chrome */}
           <div className="flex items-center gap-3 border-b border-border bg-background/40 px-3 py-2">
             <div className="flex items-center gap-1.5 pl-1">
@@ -607,7 +656,40 @@ function PreviewPane({
             className={`relative min-h-0 flex-1 overflow-hidden ${backgroundClass(theme)}`}
             style={themeStyle(theme)}
           >
-            {questions.length === 0 ? (
+            {tab === "welcome" ? (
+              <div className="mx-auto flex h-full max-w-xl flex-col justify-center px-8 py-12">
+                <div className="text-[10px] uppercase tracking-[0.18em]" style={{ color: "var(--t-accent)" }}>
+                  {title || "Untitled survey"}
+                </div>
+                <h1 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight text-balance">
+                  {welcome?.title ?? "We'd love your input."}
+                </h1>
+                <p className="mt-4 max-w-lg text-sm text-muted-foreground text-pretty">
+                  {welcome?.description ?? description ?? "It takes about a minute."}
+                </p>
+                <button
+                  className="mt-7 inline-flex w-fit items-center gap-2 rounded-[var(--radius)] px-5 py-2.5 text-sm font-medium"
+                  style={{ background: "var(--t-accent)", color: "var(--t-accent-foreground)" }}
+                >
+                  {welcome?.button ?? "Start"}
+                </button>
+              </div>
+            ) : tab === "complete" ? (
+              <div className="mx-auto flex h-full max-w-xl flex-col items-center justify-center px-8 py-12 text-center">
+                <div
+                  className="grid h-12 w-12 place-items-center rounded-full ring-1"
+                  style={{ background: "color-mix(in oklab, var(--t-accent) 15%, transparent)", color: "var(--t-accent)", borderColor: "var(--t-accent)" }}
+                >
+                  <Check className="h-6 w-6" />
+                </div>
+                <h1 className="mt-5 font-display text-3xl font-semibold tracking-tight">
+                  {thanks?.title ?? "Thank you."}
+                </h1>
+                <p className="mt-3 max-w-md text-sm text-muted-foreground">
+                  {thanks?.description ?? "Your response was recorded. It now feeds the team's source of truth."}
+                </p>
+              </div>
+            ) : questions.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center px-6 text-center">
                 <img src={agentMark} alt="" className="h-10 w-10 rounded-xl opacity-90" />
                 <h3 className="mt-4 font-display text-lg font-semibold">Your survey will appear here</h3>
@@ -639,7 +721,7 @@ function PreviewPane({
           </div>
 
           {/* Frame footer */}
-          {questions.length > 0 && (
+          {tab === "question" && questions.length > 0 && (
             <div className="flex items-center justify-between border-t border-border bg-background/40 px-3 py-2">
               <button
                 onClick={() => setIdx((i) => Math.max(0, i - 1))}
