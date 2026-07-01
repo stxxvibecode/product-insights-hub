@@ -708,7 +708,9 @@ function PreviewPane({
 
   return (
     <div className="flex min-h-0 flex-col overflow-y-auto">
-      <ThemePanel theme={theme} onChange={onThemeChange} />
+      <div id="form-design-panel">
+        <ThemePanel theme={theme} onChange={onThemeChange} />
+      </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-6">
         {/* Design check */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border/70 bg-card/50 px-3.5 py-2.5">
