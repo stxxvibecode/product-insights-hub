@@ -640,3 +640,120 @@ function LiveSurveyCard({ survey }: { survey: SurveyRow }) {
     </div>
   );
 }
+
+function CustomizePanel({
+  starter,
+  answers,
+  onToggle,
+  onClear,
+}: {
+  starter: Starter;
+  answers: Record<string, string[]>;
+  onToggle: (q: ContextQuestion, option: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-border bg-card/60 p-4 backdrop-blur">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-signal/15 text-signal">
+            <Sparkles className="h-3 w-3" />
+          </span>
+          <div className="text-xs font-medium text-foreground">
+            Customize this survey
+            <span className="ml-1.5 text-muted-foreground">· optional</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <X className="h-3 w-3" /> Clear template
+        </button>
+      </div>
+      <div className="mt-3 space-y-3">
+        {starter.context.map((q) => {
+          const selected = answers[q.id] ?? [];
+          return (
+            <div key={q.id}>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                {q.question}
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {q.options.map((opt) => {
+                  const active = selected.includes(opt);
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => onToggle(q, opt)}
+                      className={
+                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors " +
+                        (active
+                          ? "border-signal/60 bg-signal/10 text-foreground"
+                          : "border-border bg-background/40 text-muted-foreground hover:border-signal/40 hover:text-foreground")
+                      }
+                    >
+                      {active && <Check className="h-3 w-3 text-signal" />}
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BuildingCard({ label, step }: { label: string; step: number }) {
+  return (
+    <div className="rounded-2xl border border-signal/30 bg-card/80 p-6 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur">
+      <div className="flex items-center gap-2.5">
+        <span className="relative grid h-6 w-6 place-items-center rounded-md bg-signal/15">
+          <span className="absolute inset-0 animate-ping rounded-md bg-signal/25" />
+          <Sparkles className="relative h-3.5 w-3.5 text-signal" />
+        </span>
+        <div className="font-display text-base font-medium tracking-tight">
+          Building your {label.toLowerCase()}...
+        </div>
+      </div>
+      <ul className="mt-5 space-y-2">
+        {BUILD_STEPS.map((s, i) => {
+          const done = i < step;
+          const active = i === step;
+          return (
+            <li key={s} className="flex items-center gap-2.5 text-sm">
+              <span
+                className={
+                  "grid h-4 w-4 place-items-center rounded-full border transition-colors " +
+                  (done
+                    ? "border-signal bg-signal text-signal-foreground"
+                    : active
+                      ? "border-signal/60 bg-signal/10"
+                      : "border-border bg-background/40")
+                }
+              >
+                {done ? (
+                  <Check className="h-2.5 w-2.5" />
+                ) : active ? (
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal" />
+                ) : null}
+              </span>
+              <span
+                className={
+                  done || active ? "text-foreground" : "text-muted-foreground"
+                }
+              >
+                {s}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
