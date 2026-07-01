@@ -149,6 +149,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          origin_question_id: string | null
           position: number
           required: boolean
           survey_id: string
@@ -161,6 +162,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          origin_question_id?: string | null
           position?: number
           required?: boolean
           survey_id: string
@@ -173,6 +175,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          origin_question_id?: string | null
           position?: number
           required?: boolean
           survey_id?: string
@@ -198,6 +201,7 @@ export type Database = {
           respondent_token: string | null
           started_at: string
           survey_id: string
+          survey_version: number
           user_agent: string | null
         }
         Insert: {
@@ -207,6 +211,7 @@ export type Database = {
           respondent_token?: string | null
           started_at?: string
           survey_id: string
+          survey_version?: number
           user_agent?: string | null
         }
         Update: {
@@ -216,6 +221,7 @@ export type Database = {
           respondent_token?: string | null
           started_at?: string
           survey_id?: string
+          survey_version?: number
           user_agent?: string | null
         }
         Relationships: [
@@ -266,47 +272,114 @@ export type Database = {
           },
         ]
       }
+      survey_versions: {
+        Row: {
+          description: string | null
+          id: string
+          published_at: string
+          questions: Json
+          survey_id: string
+          thank_you_screen: Json
+          theme: Json
+          title: string
+          version: number
+          welcome_screen: Json
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          published_at?: string
+          questions?: Json
+          survey_id: string
+          thank_you_screen?: Json
+          theme?: Json
+          title: string
+          version: number
+          welcome_screen?: Json
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          published_at?: string
+          questions?: Json
+          survey_id?: string
+          thank_you_screen?: Json
+          theme?: Json
+          title?: string
+          version?: number
+          welcome_screen?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_versions_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       surveys: {
         Row: {
           created_at: string
           description: string | null
           id: string
+          is_edit_draft: boolean
           owner_id: string
+          parent_survey_id: string | null
+          published_at: string | null
           slug: string
           status: Database["public"]["Enums"]["survey_status"]
           thank_you_screen: Json
           theme: Json
           title: string
           updated_at: string
+          version: number
           welcome_screen: Json
         }
         Insert: {
           created_at?: string
           description?: string | null
           id?: string
+          is_edit_draft?: boolean
           owner_id: string
+          parent_survey_id?: string | null
+          published_at?: string | null
           slug: string
           status?: Database["public"]["Enums"]["survey_status"]
           thank_you_screen?: Json
           theme?: Json
           title?: string
           updated_at?: string
+          version?: number
           welcome_screen?: Json
         }
         Update: {
           created_at?: string
           description?: string | null
           id?: string
+          is_edit_draft?: boolean
           owner_id?: string
+          parent_survey_id?: string | null
+          published_at?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["survey_status"]
           thank_you_screen?: Json
           theme?: Json
           title?: string
           updated_at?: string
+          version?: number
           welcome_screen?: Json
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "surveys_parent_survey_id_fkey"
+            columns: ["parent_survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tags: {
         Row: {

@@ -35,6 +35,15 @@ You can also re-theme the survey on request via set_theme — pick a preset (cor
 
 If the user asks an unrelated question, answer briefly without calling tools.`;
 
+const EDIT_ASSIST_PROMPT = `You are Insightform's Editor Assist. You are working inside an EDIT DRAFT of an already-live survey.
+
+Rules:
+- All tool calls apply to the DRAFT only. The live survey is not touched.
+- Prefer small, targeted edits (rewrites, reorders, added follow-ups, tag updates, design tweaks).
+- Flag risk in your written summary when appropriate: rewriting a question is medium risk, deleting a question or changing its type is high risk (existing responses stay on the previous version, new responses use the updated version).
+- Never delete or change types unless the user explicitly asked for it.
+- After tool calls, write 1-2 sentences summarising what you changed on the draft and what the user should review before publishing the update.`;
+
 const QuestionInput = z.object({
   type: z.enum(QTYPES).describe("Question type"),
   title: z.string().min(1).max(280),
@@ -76,11 +85,20 @@ export const Route = createFileRoute("/api/chat/surveys/$id")({
 
         // Ownership check.
         const { data: owned } = await supabase
-          .from("surveys").select("owner_id, title, description")
+          .from("surveys").select("owner_id, title, description, status, is_edit_draft")
           .eq("id", surveyId).maybeSingle();
         if (!owned || owned.owner_id !== userId) {
           return new Response("Survey not found", { status: 404 });
         }
+        // Never mutate a live survey directly through chat. The user must
+        // create an edit draft first.
+        if (owned.status === "live" && !owned.is_edit_draft) {
+          return new Response(
+            "This survey is live. Create an edit draft to make changes safely.",
+            { status: 409 },
+          );
+        }
+        const isEditAssist = owned.is_edit_draft === true;
 
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) return new Response("AI is not configured", { status: 500 });
@@ -183,7 +201,7 @@ export const Route = createFileRoute("/api/chat/surveys/$id")({
         const result = streamText({
           model,
           stopWhen: stepCountIs(50),
-          system: `${SYSTEM_PROMPT}\n\nCurrent survey snapshot:\n${JSON.stringify(snapshot, null, 2)}`,
+          system: `${isEditAssist ? EDIT_ASSIST_PROMPT : SYSTEM_PROMPT}\n\nCurrent survey snapshot:\n${JSON.stringify(snapshot, null, 2)}`,
           messages: await convertToModelMessages(incomingMessages),
           tools: {
             set_survey_meta: tool({

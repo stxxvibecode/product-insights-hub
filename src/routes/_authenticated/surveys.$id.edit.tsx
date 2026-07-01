@@ -13,7 +13,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { motion } from "motion/react";
 import {
   ArrowLeft, GripVertical, Plus, Trash2, Eye, Tag as TagIcon,
-  Loader2, Copy, ExternalLink, Sparkles,
+  Loader2, Copy, ExternalLink, Sparkles, GitBranch, ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
@@ -24,6 +24,8 @@ import { listTags, createTag, assignTag, unassignTag, getQuestionTags } from "@/
 import { getSurveyInsights } from "@/lib/insights.functions";
 import { QUESTION_TYPE_META, type QuestionType } from "@/lib/question-types";
 import { ThemePanel } from "@/components/ThemePanel";
+import { ReviewChangesDialog } from "@/components/edit-draft-modals";
+import { CreateEditDraftDialog } from "@/components/edit-draft-modals";
 import {
   themeStyle,
   backgroundClass,
@@ -145,6 +147,10 @@ function SurveyBuilder() {
   }
 
   const isLive = data.survey.status === "live";
+  const isEditDraft = Boolean(data.survey.is_edit_draft);
+  const parentSurveyId = data.survey.parent_survey_id as string | null;
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [editDraftOpen, setEditDraftOpen] = useState(false);
 
   return (
     <AppShell>
@@ -163,18 +169,77 @@ function SurveyBuilder() {
             }}
             className="flex-1 min-w-[200px] rounded-lg bg-transparent px-2 py-1 text-lg font-medium outline-none transition-colors hover:bg-secondary/60 focus:bg-secondary"
           />
+          {isEditDraft ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-xs font-medium text-amber-200">
+              <GitBranch className="h-3 w-3" />
+              Editing draft · v{(data.survey.version ?? 1) + 1}
+            </span>
+          ) : isLive ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-xs font-medium text-emerald-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Live survey · v{data.survey.version ?? 1}
+            </span>
+          ) : null}
           <div className="ml-auto flex items-center gap-2">
             <TabsBar tab={tab} setTab={setTab} />
-            <button
-              onClick={() => mUpdateSurvey.mutate({ id, status: isLive ? "draft" : "live" })}
-              className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${isLive ? "border border-border text-foreground" : "bg-signal text-signal-foreground"}`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "bg-emerald-400" : "bg-signal-foreground/60"}`} />
-              {isLive ? "Live" : "Publish"}
-            </button>
+            {isEditDraft ? (
+              <button
+                onClick={() => setReviewOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-signal px-3.5 py-1.5 text-sm font-medium text-signal-foreground"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Review changes
+              </button>
+            ) : isLive ? (
+              <button
+                onClick={() => setEditDraftOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-signal px-3.5 py-1.5 text-sm font-medium text-signal-foreground"
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+                Edit survey
+              </button>
+            ) : (
+              <button
+                onClick={() => mUpdateSurvey.mutate({ id, status: isLive ? "draft" : "live" })}
+                className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${isLive ? "border border-border text-foreground" : "bg-signal text-signal-foreground"}`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "bg-emerald-400" : "bg-signal-foreground/60"}`} />
+                {isLive ? "Live" : "Publish"}
+              </button>
+            )}
           </div>
         </div>
+        {isEditDraft && (
+          <div className="border-t border-amber-400/20 bg-amber-400/5 px-6 py-2 text-xs text-amber-200/90">
+            You’re editing a safe draft of a live survey. Changes won’t affect
+            the live version or existing responses until you publish the update.
+            {parentSurveyId ? (
+              <Link
+                to="/surveys/$id/edit"
+                params={{ id: parentSurveyId }}
+                className="ml-2 underline"
+              >
+                View live version
+              </Link>
+            ) : null}
+          </div>
+        )}
       </div>
+      {isEditDraft && (
+        <ReviewChangesDialog
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
+          draftId={id}
+        />
+      )}
+      {isLive && !isEditDraft && (
+        <CreateEditDraftDialog
+          open={editDraftOpen}
+          onOpenChange={setEditDraftOpen}
+          liveSurveyId={id}
+          liveTitle={data.survey.title}
+        />
+      )}
 
       {tab === "build" && (
         <div className="mx-auto grid max-w-[1400px] grid-cols-12 gap-0">

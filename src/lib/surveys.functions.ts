@@ -20,6 +20,7 @@ export const listSurveys = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("surveys")
       .select("id, title, description, slug, status, updated_at", { count: "exact" })
+      .eq("is_edit_draft", false)
       .order("updated_at", { ascending: false })
       .range(offset, offset + limit - 1);
     if (data.status) q = q.eq("status", data.status);
@@ -49,6 +50,7 @@ export const listRecentSurveys = createServerFn({ method: "GET" })
     const { data: rows, error } = await context.supabase
       .from("surveys")
       .select("id, title, updated_at")
+      .eq("is_edit_draft", false)
       .order("updated_at", { ascending: false })
       .limit(limit);
     if (error) throw new Error(error.message);

@@ -37,9 +37,23 @@ export const startResponse = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const supabase = publicClient();
     const id = crypto.randomUUID();
+    // Look up the current live version so we can stamp it on the response.
+    const { data: survey } = await supabase
+      .from("surveys")
+      .select("version, status")
+      .eq("id", data.survey_id)
+      .maybeSingle();
+    if (!survey || survey.status !== "live") {
+      throw new Error("Survey is not live");
+    }
     const { error } = await supabase
       .from("responses")
-      .insert({ id, survey_id: data.survey_id, respondent_token: data.respondent_token });
+      .insert({
+        id,
+        survey_id: data.survey_id,
+        respondent_token: data.respondent_token,
+        survey_version: survey.version,
+      });
     if (error) throw new Error(error.message);
     return { id };
   });
