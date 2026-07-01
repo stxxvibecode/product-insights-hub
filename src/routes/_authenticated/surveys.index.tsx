@@ -4,13 +4,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
-import { ArrowUpRight, Copy, Radio } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Radio, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import agentMark from "@/assets/agent-mark.png";
 import {
   PromptInput,
   PromptInputTextarea,
   PromptInputFooter,
+  PromptInputProvider,
 } from "@/components/ai-elements/prompt-input";
 
 export const Route = createFileRoute("/_authenticated/surveys/")({
@@ -18,12 +19,148 @@ export const Route = createFileRoute("/_authenticated/surveys/")({
   component: SurveysIndex,
 });
 
-const STARTERS = [
-  "Post-purchase NPS",
-  "New user onboarding pulse",
-  "Win/loss interview",
-  "Feature prioritization",
-  "Dashboard redesign feedback",
+type ContextQuestion = {
+  id: string;
+  question: string;
+  options: string[];
+  multi?: boolean;
+};
+
+type Starter = {
+  id: string;
+  label: string;
+  prompt: string;
+  context: ContextQuestion[];
+};
+
+const STARTERS: Starter[] = [
+  {
+    id: "post-purchase-nps",
+    label: "Post-purchase NPS",
+    prompt:
+      "Create a post-purchase NPS survey to measure customer satisfaction right after checkout, with follow-up questions about pricing clarity, onboarding, and perceived product value.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["New customers", "Repeat customers", "Enterprise buyers", "Self-serve buyers"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["Immediately after checkout", "24h after purchase", "After first use", "7 days after purchase"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Overall satisfaction", "Pricing clarity", "Onboarding", "Product value", "Support quality"],
+        multi: true,
+      },
+    ],
+  },
+  {
+    id: "onboarding-pulse",
+    label: "New user onboarding pulse",
+    prompt:
+      "Create a new user onboarding pulse survey to understand whether users understand the product value, where they got stuck, and what would help them activate faster.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["New signups", "Trial users", "Paid customers", "Churned users"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["After signup", "After first session", "After 7 days", "After onboarding completion"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Activation", "Confusion", "Product value", "Setup friction", "Intent to continue"],
+        multi: true,
+      },
+    ],
+  },
+  {
+    id: "win-loss",
+    label: "Win/loss interview",
+    prompt:
+      "Create a win/loss interview survey to understand why prospects did or did not convert in the last 30 days, including which alternatives they considered and what would have changed their decision.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["Closed-won", "Closed-lost", "Stalled deals", "Champions"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["Immediately after decision", "1 week later", "1 month later"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Decision drivers", "Competitor comparison", "Pricing", "Product gaps", "Sales experience"],
+        multi: true,
+      },
+    ],
+  },
+  {
+    id: "feature-prioritization",
+    label: "Feature prioritization",
+    prompt:
+      "Create a short feature prioritization survey for our top customers asking which upcoming capabilities would have the biggest impact on their workflow and why.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["Top 50 customers", "Power users", "All active users", "Design partners"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["Before roadmap planning", "Quarterly", "After a major release"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Impact", "Willingness to pay", "Use cases", "Ranking", "Blockers"],
+        multi: true,
+      },
+    ],
+  },
+  {
+    id: "dashboard-redesign",
+    label: "Dashboard redesign feedback",
+    prompt:
+      "Create a dashboard redesign feedback survey to evaluate clarity, speed, and usefulness of the new dashboard, and to surface confusing sections users want changed.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["All active users", "Power users", "New users", "Admins"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["Right after they open the new dashboard", "After 3 sessions", "After 1 week"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Clarity", "Speed", "Usefulness", "Navigation", "Missing data"],
+        multi: true,
+      },
+    ],
+  },
+];
+
+const BUILD_STEPS = [
+  "Drafting questions",
+  "Applying tags",
+  "Checking question quality",
+  "Preparing preview",
 ];
 
 type Filter = "all" | "draft" | "live" | "closed";
