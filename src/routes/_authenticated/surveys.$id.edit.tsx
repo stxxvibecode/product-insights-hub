@@ -25,6 +25,7 @@ import { getSurveyInsights } from "@/lib/insights.functions";
 import { QUESTION_TYPE_META, type QuestionType } from "@/lib/question-types";
 import { ThemePanel } from "@/components/ThemePanel";
 import { ReviewChangesDialog } from "@/components/edit-draft-modals";
+import { CreateEditDraftDialog } from "@/components/edit-draft-modals";
 import {
   themeStyle,
   backgroundClass,
@@ -149,6 +150,7 @@ function SurveyBuilder() {
   const isEditDraft = Boolean(data.survey.is_edit_draft);
   const parentSurveyId = data.survey.parent_survey_id as string | null;
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [editDraftOpen, setEditDraftOpen] = useState(false);
 
   return (
     <AppShell>
@@ -188,6 +190,14 @@ function SurveyBuilder() {
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Review changes
               </button>
+            ) : isLive ? (
+              <button
+                onClick={() => setEditDraftOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-signal px-3.5 py-1.5 text-sm font-medium text-signal-foreground"
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+                Edit survey
+              </button>
             ) : (
               <button
                 onClick={() => mUpdateSurvey.mutate({ id, status: isLive ? "draft" : "live" })}
@@ -220,6 +230,14 @@ function SurveyBuilder() {
           open={reviewOpen}
           onOpenChange={setReviewOpen}
           draftId={id}
+        />
+      )}
+      {isLive && !isEditDraft && (
+        <CreateEditDraftDialog
+          open={editDraftOpen}
+          onOpenChange={setEditDraftOpen}
+          liveSurveyId={id}
+          liveTitle={data.survey.title}
         />
       )}
 
