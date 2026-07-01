@@ -6,6 +6,8 @@ import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
 import { ArrowUpRight, Check, Copy, Radio, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
+import { CreateEditDraftDialog } from "@/components/edit-draft-modals";
 import agentMark from "@/assets/agent-mark.png";
 import {
   PromptInput,
@@ -583,6 +585,7 @@ function LiveSurveyCard({ survey }: { survey: SurveyRow }) {
     typeof window === "undefined"
       ? `/s/${survey.slug}`
       : `${window.location.origin}/s/${survey.slug}`;
+  const [draftOpen, setDraftOpen] = useState(false);
 
   async function copy() {
     try {
@@ -628,15 +631,30 @@ function LiveSurveyCard({ survey }: { survey: SurveyRow }) {
         >
           View insights
         </Link>
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-emerald-300 transition-colors hover:text-emerald-200"
-        >
-          Open survey <ArrowUpRight className="h-3.5 w-3.5" />
-        </a>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setDraftOpen(true)}
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Edit survey
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 font-medium text-emerald-300 transition-colors hover:text-emerald-200"
+          >
+            Open <ArrowUpRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </div>
+      <CreateEditDraftDialog
+        open={draftOpen}
+        onOpenChange={setDraftOpen}
+        liveSurveyId={survey.id}
+        liveTitle={survey.title}
+      />
     </div>
   );
 }
