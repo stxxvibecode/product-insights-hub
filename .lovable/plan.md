@@ -1,38 +1,62 @@
-## Add Form Design to the Advanced editor
+## Smart chip flow for Compose
 
-Mount the existing `ThemePanel` inside `/surveys/$id/edit` and wire it to the live Build preview, so themeing works from either view without any new backend or UI primitives.
+Turn the starter chips on `/surveys` from one-click generators into a guided template picker, then hand off to the composer with a visible generation state and post-generation quick actions.
 
-### Scope
-Presentation-only edit to `src/routes/_authenticated/surveys.$id.edit.tsx`. No changes to `ThemePanel`, `survey-theme`, server functions, schema, or the Compose route.
+### 1. Chip → smart template (surveys index)
 
-### Changes
+File: `src/routes/_authenticated/surveys.index.tsx`
 
-1. Local theme state (mirrors Compose pattern in `surveys.$id.tsx`)
-   - Track `theme` in local state, seeded from `data.survey.theme` merged with `DEFAULT_THEME`.
-   - Debounced save (400ms) via existing `updateSurvey` server fn: `{ id, theme }`.
-   - `useEffect` to resync when `data.survey.theme` changes from server invalidations (e.g. AI `set_theme` tool ran in Compose).
+- Replace the flat `STARTERS: string[]` with a typed catalog:
+  ```ts
+  type Starter = {
+    id: string;               // "onboarding-pulse"
+    label: string;            // chip text
+    prompt: string;           // auto-fill for main prompt
+    context: {
+      id: string;             // "audience" | "timing" | "focus"
+      question: string;
+      options: string[];
+      multi?: boolean;        // "focus" allows multi-select
+    }[];
+  };
+  ```
+- Seed with 5 starters (Post-purchase NPS, New user onboarding pulse, Win/loss interview, Feature prioritization, Dashboard redesign feedback). Fully spec `onboarding-pulse` with the prompt and 3 context groups from the brief; give the others reasonable defaults following the same shape so behavior is consistent.
+- Chip click behavior (no mutation yet):
+  1. Set `activeStarterId`; style active chip with `border-signal/60 bg-signal/10 text-foreground` (soft orange outline/fill).
+  2. Set the `PromptInput` value to `starter.prompt` (lift textarea into controlled state via `PromptInput` `value` / `onValueChange`).
+  3. Reveal a "Customize this survey" panel directly under the composer.
+  4. Swap the submit button label from "Compose" to "Compose survey".
+- Customize panel:
+  - Card under the prompt, `rounded-2xl border-border bg-card/60 p-4`, small header "Customize this survey · optional".
+  - One row per context question. Options render as selectable pill buttons (single-select except `focus` which is multi). Selecting toggles local state `answers: Record<string, string[]>`.
+  - "Clear template" ghost button resets `activeStarterId`, empties the prompt, hides the panel, restores "Compose" label.
+- Submit path:
+  - When a starter is active, append a compact `Context:` suffix to the prompt using selected answers before calling `create.mutate(finalPrompt)`. Non-selected groups are omitted.
+  - When no starter is active, current free-text flow is unchanged.
 
-2. New "Design" tab
-   - Extend the `Tab` union: `"build" | "design" | "preview" | "insights" | "share"`.
-   - Add `{ id: "design", label: "Design" }` to `TabsBar`.
-   - Render a two-column layout when active:
-     - Left (col-span-4 lg): `<ThemePanel theme={theme} onChange={handleThemeChange} />` inside a scrollable card. Same component, same AI prompt, same presets — no duplication.
-     - Right (col-span-8 lg): themed device-frame preview using `themeStyle(theme)` + `backgroundClass(theme)`, showing the first question via `QuestionPreview` (or a "no questions yet" empty state).
+### 2. Generation state (surveys index → composer)
 
-3. Apply theme to existing surfaces
-   - Wrap the Build tab's "Live preview" column and the Preview tab's respondent card with `style={themeStyle(theme)}` and the `backgroundClass(theme)` class so the buttons/accents already reflect the current theme without switching tabs. This is what makes it feel like it "works" from the editor.
+- On submit with a starter active, show a full-width overlay card in place of the composer while `create.isPending` is true:
+  - Header: `Building your ${starter.label.toLowerCase()}...` (for onboarding-pulse this reads "Building your onboarding pulse...").
+  - Steps list with animated states: Drafting questions → Applying tags → Checking question quality → Preparing preview.
+  - Advance steps on a short timer (~700ms each) so the animation completes naturally while `createSurvey` runs and navigation resolves. Purely presentational; no backend change.
+- Existing navigation to `/surveys/$id?prompt=…` remains the actual handoff. The composer already auto-sends the seed prompt, so generation kicks off on arrival.
 
-### Technical notes
-- Reuse `ThemePanel`, `themeStyle`, `backgroundClass`, `DEFAULT_THEME`, `SurveyTheme` from existing modules — no new files.
-- Cast `data.survey.theme` as `SurveyTheme | null` (same cast Compose uses).
-- Keep the existing `mUpdateSurvey` mutation for the title/status flow; add a small dedicated debounced save for theme to avoid noisy invalidations while dragging color pickers.
-- Do not add Form Design controls to `AppShell` or duplicate the ThemePanel component.
+### 3. Post-generation next actions (composer)
 
-### Out of scope
-- Contrast/readability analysis, welcome/thank-you tab in this editor's preview (that already exists in Compose).
-- Any change to the chat/AI Compose route, sidebar, or server functions.
+File: `src/routes/_authenticated/surveys.$id.tsx`
 
-### Verification
-- Load `/surveys/$id/edit`, open the new **Design** tab: preset chips update the right-side preview instantly; the AI prompt runs `generateTheme` and applies. Switch back to **Build** — question preview reflects the same accent/radius/background.
-- Reload the page → theme persists (round-trips through `updateSurvey`).
-- Open Compose in another tab, change theme there → returning to the editor and refetching shows the new theme.
+- After the assistant finishes streaming the initial seed response (detect via `status === "ready"` AND `messages.length >= 2` AND last message is assistant AND we haven't shown the panel yet), render a "Suggested next actions" strip above the composer.
+- Actions (each is a chip that sends a prepared prompt via `sendMessage` — no new tools required, the existing chat route already handles them):
+  - Add follow-up questions → "Add 2–3 follow-up questions to the most important question."
+  - Check for bias → "Review the survey for biased or leading wording and rewrite as needed."
+  - Make it shorter → "Trim this survey to the fewest questions that still answer the goal."
+  - Add branching logic → "Add branching so respondents only see relevant follow-ups."
+  - Customize design → scroll/switch to the Form Design panel (no chat send).
+  - Publish → opens the existing Publish action.
+- Chips dismiss after one is used but can be re-summoned via a small "Suggestions" toggle so they don't clutter the transcript permanently.
+
+### Notes
+
+- No schema, server function, or AI tool changes. All new logic is client-side composition on top of the existing `createSurvey` + `/api/chat/surveys/$id` streaming flow.
+- Reuses existing tokens (`signal`, `card`, `border`) so styling stays on-brand.
