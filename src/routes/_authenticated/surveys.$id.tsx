@@ -95,6 +95,17 @@ function SurveyComposer() {
     queryFn: () => fetchSurvey({ data: { id } }),
   });
 
+  // Compose Mode is only for brand-new drafts. If the survey is already
+  // live (or is an edit draft of a live survey), route the user into the
+  // Editor Assist experience — where AI changes require review.
+  useEffect(() => {
+    const s = surveyQ.data?.survey;
+    if (!s) return;
+    if (s.status === "live" || s.is_edit_draft) {
+      navigate({ to: "/surveys/$id/edit", params: { id }, replace: true });
+    }
+  }, [surveyQ.data?.survey, id, navigate]);
+
   const chatQ = useQuery({
     queryKey: ["survey-chat", id],
     queryFn: () => fetchChat({ data: { survey_id: id } }),
@@ -487,7 +498,7 @@ function SurveyComposer() {
                   >
                     <PromptInputTextarea
                       ref={textareaRef}
-                      placeholder="Ask the agent to add, rewrite, or tag questions…"
+                      placeholder="Describe the survey you want to create..."
                       className="min-h-[64px] text-sm"
                     />
                     <PromptInputFooter className="justify-between">
