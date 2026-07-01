@@ -34,8 +34,8 @@ export type SurveyDiffChange = {
   detail?: string;
   position?: number;
   question_id?: string;
-  before?: unknown;
-  after?: unknown;
+  before?: Json | null;
+  after?: Json | null;
 };
 
 export type SurveyDiff = {
@@ -230,8 +230,8 @@ export const diffSurvey = createServerFn({ method: "GET" })
         kind: "meta",
         risk: "low",
         summary: "Survey title updated",
-        before: live.title,
-        after: draft.title,
+        before: live.title as Json,
+        after: draft.title as Json,
       });
     }
     if ((draft.description ?? "") !== (live.description ?? "")) {
@@ -239,8 +239,8 @@ export const diffSurvey = createServerFn({ method: "GET" })
         kind: "meta",
         risk: "low",
         summary: "Survey description updated",
-        before: live.description,
-        after: draft.description,
+        before: (live.description ?? null) as Json | null,
+        after: (draft.description ?? null) as Json | null,
       });
     }
     if (JSON.stringify(draft.theme) !== JSON.stringify(live.theme)) {
@@ -279,7 +279,7 @@ export const diffSurvey = createServerFn({ method: "GET" })
           summary: `Removed question: "${lq.title}"`,
           position: lq.position,
           question_id: lq.id,
-          before: lq,
+          before: lq as unknown as Json,
         });
       }
     }
@@ -294,7 +294,7 @@ export const diffSurvey = createServerFn({ method: "GET" })
           summary: `Added question: "${dq.title}"`,
           position: dq.position,
           question_id: dq.id,
-          after: dq,
+          after: dq as unknown as Json,
         });
         continue;
       }
@@ -308,8 +308,8 @@ export const diffSurvey = createServerFn({ method: "GET" })
             : `Rewrote question: "${lq.title}" → "${dq.title}"`,
           position: dq.position,
           question_id: dq.id,
-          before: lq,
-          after: dq,
+          before: lq as unknown as Json,
+          after: dq as unknown as Json,
         });
       }
       if (dq.position !== lq.position) {
