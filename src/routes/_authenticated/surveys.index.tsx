@@ -241,6 +241,70 @@ function SurveysIndex() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't create"),
   });
 
+  // Smart chip state
+  const [activeStarterId, setActiveStarterId] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string[]>>({});
+  const activeStarter = useMemo(
+    () => STARTERS.find((s) => s.id === activeStarterId) ?? null,
+    [activeStarterId],
+  );
+
+  function selectStarter(s: Starter) {
+    setActiveStarterId(s.id);
+    setAnswers({});
+  }
+  function clearStarter() {
+    setActiveStarterId(null);
+    setAnswers({});
+  }
+  function toggleAnswer(q: ContextQuestion, option: string) {
+    setAnswers((prev) => {
+      const current = prev[q.id] ?? [];
+      if (q.multi) {
+        return {
+          ...prev,
+          [q.id]: current.includes(option)
+            ? current.filter((v) => v !== option)
+            : [...current, option],
+        };
+      }
+      return { ...prev, [q.id]: current[0] === option ? [] : [option] };
+    });
+  }
+
+  function buildFinalPrompt(text: string): string {
+    if (!activeStarter) return text;
+    const parts: string[] = [];
+    for (const q of activeStarter.context) {
+      const vals = answers[q.id];
+      if (vals && vals.length) parts.push(`${q.question} ${vals.join(", ")}`);
+    }
+    if (!parts.length) return text;
+    return `${text}\n\nContext:\n- ${parts.join("\n- ")}`;
+  }
+
+  // Animated build steps while creating (with active chip)
+  const [buildStep, setBuildStep] = useState(0);
+  useEffect(() => {
+    if (!create.isPending || !activeStarter) return;
+    setBuildStep(0);
+    const t = setInterval(() => {
+      setBuildStep((s) => Math.min(s + 1, BUILD_STEPS.length - 1));
+    }, 700);
+    return () => clearInterval(t);
+  }, [create.isPending, activeStarter]);
+
+  const showingBuild = create.isPending && activeStarter !== null;
+  const composerKey = activeStarterId ?? "free";
+  const composerSeed = activeStarter?.prompt ?? "";
+  const ctaLabel = activeStarter
+    ? create.isPending
+      ? "Composing…"
+      : "Compose survey"
+    : create.isPending
+      ? "Composing…"
+      : "Compose";
+
   return (
     <AppShell>
       <div className="relative min-h-[calc(100vh-1px)]">
@@ -261,50 +325,75 @@ function SurveysIndex() {
           </div>
 
           <div className="mx-auto mt-8 w-full max-w-3xl">
-            <PromptInput
-              className="rounded-2xl border-border bg-card/80 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur focus-within:border-signal/40 focus-within:ring-1 focus-within:ring-signal/30"
-              onSubmit={async (msg) => {
-                const text = msg.text?.trim();
-                if (!text) return;
-                create.mutate(text);
-              }}
-            >
-              <PromptInputTextarea
-                placeholder="Example: Create a post-purchase NPS survey with follow-up questions about pricing, onboarding, and product value."
-                className="min-h-[160px] text-base"
-              />
-              <PromptInputFooter className="justify-between">
-                <span className="px-2 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Press <kbd className="rounded border border-border px-1 py-0.5">⏎</kbd> to compose
-                </span>
-                <button
-                  type="submit"
-                  disabled={create.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-signal px-4 py-2 text-sm font-medium text-signal-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+            {showingBuild ? (
+              <BuildingCard label={activeStarter!.label} step={buildStep} />
+            ) : (
+              <PromptInputProvider key={composerKey} initialInput={composerSeed}>
+                <PromptInput
+                  className="rounded-2xl border-border bg-card/80 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur focus-within:border-signal/40 focus-within:ring-1 focus-within:ring-signal/30"
+                  onSubmit={async (msg) => {
+                    const text = msg.text?.trim();
+                    if (!text) return;
+                    create.mutate(buildFinalPrompt(text));
+                  }}
                 >
-                  {create.isPending ? "Composing…" : "Compose"}
-                  <ArrowUpRight className="h-4 w-4" />
-                </button>
-              </PromptInputFooter>
-            </PromptInput>
+                  <PromptInputTextarea
+                    placeholder="Example: Create a post-purchase NPS survey with follow-up questions about pricing, onboarding, and product value."
+                    className="min-h-[160px] text-base"
+                  />
+                  <PromptInputFooter className="justify-between">
+                    <span className="px-2 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                      Press <kbd className="rounded border border-border px-1 py-0.5">⏎</kbd> to compose
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={create.isPending}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-signal px-4 py-2 text-sm font-medium text-signal-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+                    >
+                      {ctaLabel}
+                      <ArrowUpRight className="h-4 w-4" />
+                    </button>
+                  </PromptInputFooter>
+                </PromptInput>
+              </PromptInputProvider>
+            )}
 
-            <div className="mt-5">
-              <div className="text-center text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                Start with a template
+            {!showingBuild && activeStarter && (
+              <CustomizePanel
+                starter={activeStarter}
+                answers={answers}
+                onToggle={toggleAnswer}
+                onClear={clearStarter}
+              />
+            )}
+
+            {!showingBuild && (
+              <div className="mt-5">
+                <div className="text-center text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Start with a template
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  {STARTERS.map((s) => {
+                    const active = activeStarterId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => (active ? clearStarter() : selectStarter(s))}
+                        disabled={create.isPending}
+                        className={
+                          "rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50 " +
+                          (active
+                            ? "border-signal/60 bg-signal/10 text-foreground shadow-[0_0_0_3px_rgba(255,122,69,0.08)]"
+                            : "border-border bg-card/40 text-muted-foreground hover:border-signal/40 hover:bg-card hover:text-foreground")
+                        }
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                {STARTERS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => create.mutate(s)}
-                    disabled={create.isPending}
-                    className="rounded-full border border-border bg-card/40 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-signal/40 hover:bg-card hover:text-foreground disabled:opacity-50"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Live now */}
