@@ -1,78 +1,38 @@
-# Form Design studio refresh
+## Add Form Design to the Advanced editor
 
-Scope: presentation-only changes to `src/components/ThemePanel.tsx` and the survey composer preview pane (`src/routes/_authenticated/surveys.$id.tsx` and/or `src/components/PreviewPane.tsx`). No data model, server function, or theme engine changes.
+Mount the existing `ThemePanel` inside `/surveys/$id/edit` and wire it to the live Build preview, so themeing works from either view without any new backend or UI primitives.
 
-## 1. ThemePanel rework (`src/components/ThemePanel.tsx`)
+### Scope
+Presentation-only edit to `src/routes/_authenticated/surveys.$id.edit.tsx`. No changes to `ThemePanel`, `survey-theme`, server functions, schema, or the Compose route.
 
-Restructure from a collapsible settings strip into an always-visible, studio-feeling panel.
+### Changes
 
-- Header
-  - Title: "Form Design" (replaces "Brand & theme")
-  - Subtitle: "Customize how this survey looks and feels before you publish."
-  - Drop the Hide/Customize toggle; keep the panel open by default. (If space is a concern in the parent layout, keep a single chevron but default open.)
+1. Local theme state (mirrors Compose pattern in `surveys.$id.tsx`)
+   - Track `theme` in local state, seeded from `data.survey.theme` merged with `DEFAULT_THEME`.
+   - Debounced save (400ms) via existing `updateSurvey` server fn: `{ id, theme }`.
+   - `useEffect` to resync when `data.survey.theme` changes from server invalidations (e.g. AI `set_theme` tool ran in Compose).
 
-- AI brand prompt (promoted to hero of the panel)
-  - Section label: "Describe the look you want"
-  - Textarea-style input (taller than current single line), Sparkles icon, placeholder:
-    "Example: warm orange, soft corners, ivory background, premium SaaS feel"
-  - Primary button copy: "Generate theme" (replaces "Apply"), full-width on small panel widths
-  - Keep the vibe chips row underneath but rename to the new preset names below
+2. New "Design" tab
+   - Extend the `Tab` union: `"build" | "design" | "preview" | "insights" | "share"`.
+   - Add `{ id: "design", label: "Design" }` to `TabsBar`.
+   - Render a two-column layout when active:
+     - Left (col-span-4 lg): `<ThemePanel theme={theme} onChange={handleThemeChange} />` inside a scrollable card. Same component, same AI prompt, same presets — no duplication.
+     - Right (col-span-8 lg): themed device-frame preview using `themeStyle(theme)` + `backgroundClass(theme)`, showing the first question via `QuestionPreview` (or a "no questions yet" empty state).
 
-- Accent color (replaces "Palette")
-  - Helper line: "Controls buttons, selected states, and progress indicators."
-  - Keep the 6 color circles. Rename preset display names (id values stay the same so saved themes keep working):
-    - coral → "Warm SaaS"
-    - ink → "Editorial Dark"
-    - forest → "Fresh Gradient"
-    - indigo → "Minimal Ivory" (or remap — see note)
-    - rose → "Playful Pulse"
-    - solar → keep as a 6th option labeled "Sunlit" (only 5 names were requested; we keep the 6th preset with a sensible name so nothing disappears)
-  - Note on mapping: the 5 requested chip names are applied to the 5 closest existing presets by vibe. Preset IDs in `survey-theme.ts` are untouched so persisted themes still resolve.
+3. Apply theme to existing surfaces
+   - Wrap the Build tab's "Live preview" column and the Preview tab's respondent card with `style={themeStyle(theme)}` and the `backgroundClass(theme)` class so the buttons/accents already reflect the current theme without switching tabs. This is what makes it feel like it "works" from the editor.
 
-- Custom accent color (renamed from "Custom Accent")
-  - Same color picker + hex input, unchanged behavior.
+### Technical notes
+- Reuse `ThemePanel`, `themeStyle`, `backgroundClass`, `DEFAULT_THEME`, `SurveyTheme` from existing modules — no new files.
+- Cast `data.survey.theme` as `SurveyTheme | null` (same cast Compose uses).
+- Keep the existing `mUpdateSurvey` mutation for the title/status flow; add a small dedicated debounced save for theme to avoid noisy invalidations while dragging color pickers.
+- Do not add Form Design controls to `AppShell` or duplicate the ThemePanel component.
 
-- Background — segmented control labels: Solid · Gradient · Dots (unchanged)
-- Typography (renamed from "Font") — segmented control with polished labels:
-  - sans → "Clean"
-  - serif → "Editorial"
-  - soft → "Friendly"
-  - mono → "Technical"
-- Corners — Sharp · Soft · Pill (unchanged)
+### Out of scope
+- Contrast/readability analysis, welcome/thank-you tab in this editor's preview (that already exists in Compose).
+- Any change to the chat/AI Compose route, sidebar, or server functions.
 
-- Keep "Reset to default" link at the bottom.
-
-## 2. Design check card
-
-New compact card rendered just above the preview frame (inside the preview pane container, before the device frame).
-
-- Single-line, three pill items separated by middots:
-  - "Contrast looks good"
-  - "Buttons are readable"
-  - "Mobile spacing is balanced"
-- Small green check icon prefix, subdued surface, signal/positive accent.
-- Static for now (no live computation) — purely a confidence cue.
-
-## 3. Preview tabs + larger preview
-
-In the preview pane (`PreviewPane` used by `src/routes/_authenticated/surveys.$id.tsx`):
-
-- Add a tab strip above the device frame with three tabs: Question · Welcome · Complete
-- Tab state is local to the preview pane:
-  - Question → current question preview (existing behavior, default)
-  - Welcome → renders survey `welcome_screen` (title, description, button) using the same themed styles as the public respondent view
-  - Complete → renders `thank_you_screen`
-- Make the device frame visibly taller and a touch wider where layout allows (raise min-height, e.g. from current value to ~640–720px), and give it more vertical breathing room so it dominates the right column. Keep the existing browser-frame chrome and the copyable public URL pill.
-
-## Technical notes
-
-- No schema or server-function changes. All copy and structure changes are in the two component files above.
-- Preset name remap is display-only; `THEME_PRESETS[].id` values in `src/lib/survey-theme.ts` stay the same so any survey already saved with `theme.preset = "coral"` continues to render.
-- AI prompt behavior, theme generation server function, and applied CSS variables are unchanged.
-- Accessibility: tabs use `role="tablist"`, the design-check card uses neutral text (not an alert).
-
-## Out of scope
-
-- Live contrast/readability analysis for the design-check card
-- Editing welcome/thank-you copy from inside the preview (read-only display only)
-- Any change to the chat/composer, sidebar, or published respondent route
+### Verification
+- Load `/surveys/$id/edit`, open the new **Design** tab: preset chips update the right-side preview instantly; the AI prompt runs `generateTheme` and applies. Switch back to **Build** — question preview reflects the same accent/radius/background.
+- Reload the page → theme persists (round-trips through `updateSurvey`).
+- Open Compose in another tab, change theme there → returning to the editor and refetching shows the new theme.

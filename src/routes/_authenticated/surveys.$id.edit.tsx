@@ -23,13 +23,20 @@ import { addQuestion, updateQuestion, deleteQuestion, reorderQuestions } from "@
 import { listTags, createTag, assignTag, unassignTag, getQuestionTags } from "@/lib/tags.functions";
 import { getSurveyInsights } from "@/lib/insights.functions";
 import { QUESTION_TYPE_META, type QuestionType } from "@/lib/question-types";
+import { ThemePanel } from "@/components/ThemePanel";
+import {
+  themeStyle,
+  backgroundClass,
+  DEFAULT_THEME,
+  type SurveyTheme,
+} from "@/lib/survey-theme";
 
 export const Route = createFileRoute("/_authenticated/surveys/$id/edit")({
   head: () => ({ meta: [{ title: "Edit survey — Insightform" }] }),
   component: SurveyBuilder,
 });
 
-type Tab = "build" | "preview" | "insights" | "share";
+type Tab = "build" | "design" | "preview" | "insights" | "share";
 
 function SurveyBuilder() {
   const { id } = Route.useParams();
@@ -55,6 +62,26 @@ function SurveyBuilder() {
   useEffect(() => {
     if (data?.questions.length && !selectedId) setSelectedId(data.questions[0].id);
   }, [data?.questions, selectedId]);
+
+  // Theme state — mirrors Compose pattern with debounced save.
+  const remoteTheme = useMemo<SurveyTheme>(
+    () => ({ ...DEFAULT_THEME, ...((data?.survey.theme as SurveyTheme | null) ?? {}) }),
+    [data?.survey.theme],
+  );
+  const [theme, setTheme] = useState<SurveyTheme>(remoteTheme);
+  useEffect(() => {
+    setTheme(remoteTheme);
+  }, [remoteTheme]);
+  const themeSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function handleThemeChange(next: SurveyTheme) {
+    setTheme(next);
+    if (themeSaveRef.current) clearTimeout(themeSaveRef.current);
+    themeSaveRef.current = setTimeout(() => {
+      updateSurveyFn({ data: { id, theme: next as Record<string, unknown> } })
+        .then(() => qc.invalidateQueries({ queryKey: ["survey", id] }))
+        .catch((e: Error) => toast.error(e.message));
+    }, 400);
+  }
 
   const selected = useMemo(
     () => data?.questions.find((q) => q.id === selectedId) ?? null,
@@ -180,7 +207,10 @@ function SurveyBuilder() {
           </aside>
 
           {/* Live preview */}
-          <section className="col-span-12 min-h-[calc(100vh-130px)] border-r border-border bg-card/30 px-6 py-10 lg:col-span-6">
+          <section
+            className={`col-span-12 min-h-[calc(100vh-130px)] border-r border-border bg-card/30 px-6 py-10 lg:col-span-6 ${backgroundClass(theme)}`}
+            style={themeStyle(theme)}
+          >
             <div className="mx-auto max-w-xl">
               <div className="mb-4 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 Live preview
@@ -221,8 +251,41 @@ function SurveyBuilder() {
         </div>
       )}
 
+      {tab === "design" && (
+        <div className="mx-auto grid max-w-[1400px] grid-cols-12 gap-0">
+          <aside className="col-span-12 border-r border-border lg:col-span-4">
+            <ThemePanel theme={theme} onChange={handleThemeChange} />
+          </aside>
+          <section
+            className={`col-span-12 min-h-[calc(100vh-130px)] px-6 py-10 lg:col-span-8 ${backgroundClass(theme)}`}
+            style={themeStyle(theme)}
+          >
+            <div className="mx-auto max-w-xl">
+              <div className="mb-4 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                Themed preview
+              </div>
+              {data.questions[0] ? (
+                <QuestionPreview
+                  type={data.questions[0].type as QuestionType}
+                  title={data.questions[0].title}
+                  description={data.questions[0].description}
+                  required={data.questions[0].required}
+                  config={(data.questions[0].config ?? {}) as never}
+                  value={undefined}
+                  onChange={() => {}}
+                />
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+                  Add a question to see it themed.
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
       {tab === "preview" && (
-        <PreviewTab questions={data.questions} survey={data.survey} />
+        <PreviewTab questions={data.questions} survey={data.survey} theme={theme} />
       )}
 
       {tab === "share" && (
@@ -237,6 +300,7 @@ function SurveyBuilder() {
 function TabsBar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "build", label: "Build" },
+    { id: "design", label: "Design" },
     { id: "preview", label: "Preview" },
     { id: "insights", label: "Insights" },
     { id: "share", label: "Share" },
@@ -506,11 +570,14 @@ function TagsPanel({ questionId }: { questionId: string }) {
   );
 }
 
-function PreviewTab({ questions, survey }: { questions: QuestionRow[]; survey: { title: string; description: string | null } }) {
+function PreviewTab({ questions, survey, theme }: { questions: QuestionRow[]; survey: { title: string; description: string | null }; theme: SurveyTheme }) {
   const [i, setI] = useState(0);
   const q = questions[i];
   return (
-    <div className="mx-auto max-w-2xl px-6 py-16">
+    <div
+      className={`mx-auto max-w-2xl px-6 py-16 ${backgroundClass(theme)}`}
+      style={themeStyle(theme)}
+    >
       <div className="mb-6 flex items-center justify-between text-xs text-muted-foreground">
         <span>Preview · respondent view</span>
         <span className="font-mono">{questions.length ? `${i + 1} / ${questions.length}` : "empty"}</span>
