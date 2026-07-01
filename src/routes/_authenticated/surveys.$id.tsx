@@ -232,7 +232,6 @@ function SurveyComposer() {
 
   // Suggested next actions — show once after the first assistant reply completes.
   const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
-  const [suggestionsOpen, setSuggestionsOpen] = useState(true);
   const lastMsg = messages[messages.length - 1];
   const readyWithReply =
     status === "ready" &&
@@ -303,8 +302,9 @@ function SurveyComposer() {
     },
   ];
 
-  const showSuggestions =
-    readyWithReply && !suggestionsDismissed && survey?.status !== "live";
+  const canShowSuggestions = readyWithReply && survey?.status !== "live";
+  const showSuggestions = canShowSuggestions && !suggestionsDismissed;
+  const showSuggestionsToggle = canShowSuggestions && suggestionsDismissed;
 
   return (
     <AppShell>
@@ -429,7 +429,7 @@ function SurveyComposer() {
               <div className="h-16 bg-gradient-to-t from-background via-background/85 to-transparent" />
               <div className="bg-background pb-5 pt-1">
                 <div className="pointer-events-auto mx-auto w-full max-w-[640px] px-6">
-                  {showSuggestions && suggestionsOpen && (
+                  {showSuggestions && (
                     <div className="mb-2 rounded-2xl border border-border bg-card/70 px-3 py-2 backdrop-blur">
                       <div className="mb-1.5 flex items-center justify-between">
                         <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -466,11 +466,11 @@ function SurveyComposer() {
                       </div>
                     </div>
                   )}
-                  {showSuggestions && !suggestionsOpen && (
+                  {showSuggestionsToggle && (
                     <div className="mb-2 flex justify-end">
                       <button
                         type="button"
-                        onClick={() => setSuggestionsOpen(true)}
+                        onClick={() => setSuggestionsDismissed(false)}
                         className="inline-flex items-center gap-1 rounded-full border border-border bg-card/60 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
                       >
                         <Sparkles className="h-3 w-3 text-signal" /> Suggestions
