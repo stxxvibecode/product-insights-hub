@@ -1,35 +1,78 @@
-## Why it feels slow
+# Form Design studio refresh
 
-Network log on `/surveys` shows three sequential `GET /auth/v1/user` calls (~1s each) before any data renders, then the server-fn for surveys. Causes:
+Scope: presentation-only changes to `src/components/ThemePanel.tsx` and the survey composer preview pane (`src/routes/_authenticated/surveys.$id.tsx` and/or `src/components/PreviewPane.tsx`). No data model, server function, or theme engine changes.
 
-1. `src/routes/_authenticated/route.tsx` `beforeLoad` calls `supabase.auth.getUser()` on every route match (default `staleTime: 0`). Every navigation = a network round trip to Supabase Auth before the page mounts.
-2. `src/components/AppShell.tsx` runs another `supabase.auth.getUser()` in `useEffect` just to display the email.
-3. `RootComponent` calls `router.invalidate()` on `SIGNED_IN` / `USER_UPDATED`, which re-triggers `beforeLoad` → another `getUser` round trip.
-4. `listSurveys` query has no `staleTime`, so the sidebar Recents refetches on every page (already shared cache key — just needs freshness).
+## 1. ThemePanel rework (`src/components/ThemePanel.tsx`)
 
-## Fix (frontend-only, no schema changes)
+Restructure from a collapsible settings strip into an always-visible, studio-feeling panel.
 
-1. **Auth gate — use local session, not network**
-   - In `src/routes/_authenticated/route.tsx`: replace `supabase.auth.getUser()` with `supabase.auth.getSession()` (reads localStorage, no network). Redirect to `/auth` only if no session.
-   - Return `{ user: session.user }` into context.
-   - Add `staleTime: 5 * 60_000` on the route so `beforeLoad` is not re-run on every match.
+- Header
+  - Title: "Form Design" (replaces "Brand & theme")
+  - Subtitle: "Customize how this survey looks and feels before you publish."
+  - Drop the Hide/Customize toggle; keep the panel open by default. (If space is a concern in the parent layout, keep a single chevron but default open.)
 
-2. **AppShell — read user from route context**
-   - Remove the `useEffect` + `getUser` call. Pull the email from `Route.useRouteContext()` (or a `getRouteApi("/_authenticated").useRouteContext()`).
+- AI brand prompt (promoted to hero of the panel)
+  - Section label: "Describe the look you want"
+  - Textarea-style input (taller than current single line), Sparkles icon, placeholder:
+    "Example: warm orange, soft corners, ivory background, premium SaaS feel"
+  - Primary button copy: "Generate theme" (replaces "Apply"), full-width on small panel widths
+  - Keep the vibe chips row underneath but rename to the new preset names below
 
-3. **Root auth listener — narrower invalidation**
-   - In `src/routes/__root.tsx`, on `SIGNED_IN` / `SIGNED_OUT` only call `queryClient.invalidateQueries()`; skip `router.invalidate()` on `USER_UPDATED` (token refresh-ish events shouldn't re-run loaders). On `SIGNED_OUT`, navigate to `/auth` directly instead of relying on a re-run of `beforeLoad`.
+- Accent color (replaces "Palette")
+  - Helper line: "Controls buttons, selected states, and progress indicators."
+  - Keep the 6 color circles. Rename preset display names (id values stay the same so saved themes keep working):
+    - coral → "Warm SaaS"
+    - ink → "Editorial Dark"
+    - forest → "Fresh Gradient"
+    - indigo → "Minimal Ivory" (or remap — see note)
+    - rose → "Playful Pulse"
+    - solar → keep as a 6th option labeled "Sunlit" (only 5 names were requested; we keep the 6th preset with a sensible name so nothing disappears)
+  - Note on mapping: the 5 requested chip names are applied to the 5 closest existing presets by vibe. Preset IDs in `survey-theme.ts` are untouched so persisted themes still resolve.
 
-4. **Stabilize survey list cache**
-   - In `AppShell` and `src/routes/_authenticated/surveys.index.tsx`, give the `["surveys"]` query a `staleTime: 30_000` so the sidebar and surveys page share fresh cached data instead of refetching on navigation.
+- Custom accent color (renamed from "Custom Accent")
+  - Same color picker + hex input, unchanged behavior.
 
-5. **Font loading (small win)**
-   - Add `media="print" onLoad="this.media='all'"` style async load is not worth the complexity here; keep `display=swap` (already set) and just add a `rel="preload"` for the stylesheet `as="style"` link in `__root.tsx` to remove the render-blocking on first paint.
+- Background — segmented control labels: Solid · Gradient · Dots (unchanged)
+- Typography (renamed from "Font") — segmented control with polished labels:
+  - sans → "Clean"
+  - serif → "Editorial"
+  - soft → "Friendly"
+  - mono → "Technical"
+- Corners — Sharp · Soft · Pill (unchanged)
+
+- Keep "Reset to default" link at the bottom.
+
+## 2. Design check card
+
+New compact card rendered just above the preview frame (inside the preview pane container, before the device frame).
+
+- Single-line, three pill items separated by middots:
+  - "Contrast looks good"
+  - "Buttons are readable"
+  - "Mobile spacing is balanced"
+- Small green check icon prefix, subdued surface, signal/positive accent.
+- Static for now (no live computation) — purely a confidence cue.
+
+## 3. Preview tabs + larger preview
+
+In the preview pane (`PreviewPane` used by `src/routes/_authenticated/surveys.$id.tsx`):
+
+- Add a tab strip above the device frame with three tabs: Question · Welcome · Complete
+- Tab state is local to the preview pane:
+  - Question → current question preview (existing behavior, default)
+  - Welcome → renders survey `welcome_screen` (title, description, button) using the same themed styles as the public respondent view
+  - Complete → renders `thank_you_screen`
+- Make the device frame visibly taller and a touch wider where layout allows (raise min-height, e.g. from current value to ~640–720px), and give it more vertical breathing room so it dominates the right column. Keep the existing browser-frame chrome and the copyable public URL pill.
+
+## Technical notes
+
+- No schema or server-function changes. All copy and structure changes are in the two component files above.
+- Preset name remap is display-only; `THEME_PRESETS[].id` values in `src/lib/survey-theme.ts` stay the same so any survey already saved with `theme.preset = "coral"` continues to render.
+- AI prompt behavior, theme generation server function, and applied CSS variables are unchanged.
+- Accessibility: tabs use `role="tablist"`, the design-check card uses neutral text (not an alert).
 
 ## Out of scope
 
-No backend changes, no schema changes, no new dependencies. Public respondent view (`/s/...`) is already light and not touched.
-
-## Expected impact
-
-First paint after sign-in: drops from ~3s (3× auth/user) to <300ms (one local session read). Navigating between Dashboard / Surveys / Reports becomes instant since `beforeLoad` is cached and the surveys query is fresh for 30s.
+- Live contrast/readability analysis for the design-check card
+- Editing welcome/thank-you copy from inside the preview (read-only display only)
+- Any change to the chat/composer, sidebar, or published respondent route
