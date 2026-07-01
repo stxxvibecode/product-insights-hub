@@ -230,6 +230,82 @@ function SurveyComposer() {
     if (status === "ready") textareaRef.current?.focus();
   }, [status]);
 
+  // Suggested next actions — show once after the first assistant reply completes.
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(true);
+  const lastMsg = messages[messages.length - 1];
+  const readyWithReply =
+    status === "ready" &&
+    messages.length >= 2 &&
+    lastMsg?.role === "assistant";
+
+  function scrollToDesign() {
+    if (typeof window === "undefined") return;
+    const el = document.getElementById("form-design-panel");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  const suggestions: {
+    id: string;
+    label: string;
+    icon: typeof Plus;
+    onClick: () => void;
+  }[] = [
+    {
+      id: "followups",
+      label: "Add follow-up questions",
+      icon: Plus,
+      onClick: () =>
+        sendMessage({
+          text: "Add 2–3 follow-up questions to the most important question in this survey.",
+        }),
+    },
+    {
+      id: "bias",
+      label: "Check for bias",
+      icon: ShieldCheck,
+      onClick: () =>
+        sendMessage({
+          text: "Review this survey for biased or leading wording and rewrite any questions that need it.",
+        }),
+    },
+    {
+      id: "shorter",
+      label: "Make it shorter",
+      icon: Minus,
+      onClick: () =>
+        sendMessage({
+          text: "Trim this survey to the fewest questions that still answer the goal.",
+        }),
+    },
+    {
+      id: "branching",
+      label: "Add branching logic",
+      icon: GitBranch,
+      onClick: () =>
+        sendMessage({
+          text: "Add branching logic so respondents only see follow-ups relevant to their earlier answers.",
+        }),
+    },
+    {
+      id: "design",
+      label: "Customize design",
+      icon: Palette,
+      onClick: scrollToDesign,
+    },
+    {
+      id: "publish",
+      label: "Publish",
+      icon: Upload,
+      onClick: () => {
+        void publish();
+      },
+    },
+  ];
+
+  const showSuggestions =
+    readyWithReply && !suggestionsDismissed && survey?.status !== "live";
+
   return (
     <AppShell>
       <div className="flex h-[calc(100vh-1px)] flex-col">
@@ -353,6 +429,54 @@ function SurveyComposer() {
               <div className="h-16 bg-gradient-to-t from-background via-background/85 to-transparent" />
               <div className="bg-background pb-5 pt-1">
                 <div className="pointer-events-auto mx-auto w-full max-w-[640px] px-6">
+                  {showSuggestions && suggestionsOpen && (
+                    <div className="mb-2 rounded-2xl border border-border bg-card/70 px-3 py-2 backdrop-blur">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                          <Sparkles className="h-3 w-3 text-signal" />
+                          Suggested next actions
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSuggestionsDismissed(true)}
+                          className="rounded-full p-1 text-muted-foreground transition-colors hover:text-foreground"
+                          aria-label="Hide suggestions"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {suggestions.map((s) => {
+                          const Icon = s.icon;
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => {
+                                s.onClick();
+                                setSuggestionsDismissed(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-signal/40 hover:text-foreground"
+                            >
+                              <Icon className="h-3 w-3" />
+                              {s.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {showSuggestions && !suggestionsOpen && (
+                    <div className="mb-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setSuggestionsOpen(true)}
+                        className="inline-flex items-center gap-1 rounded-full border border-border bg-card/60 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        <Sparkles className="h-3 w-3 text-signal" /> Suggestions
+                      </button>
+                    </div>
+                  )}
                   <PromptInput
                     className="rounded-2xl border-border bg-card/70 shadow-[0_24px_60px_-30px_rgba(255,122,69,0.35)] backdrop-blur"
                     onSubmit={async (msg) => {
