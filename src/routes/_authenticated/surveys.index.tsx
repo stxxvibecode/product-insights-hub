@@ -1,16 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
-import { ArrowUpRight, Copy, Radio } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Radio, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import agentMark from "@/assets/agent-mark.png";
 import {
   PromptInput,
   PromptInputTextarea,
   PromptInputFooter,
+  PromptInputProvider,
 } from "@/components/ai-elements/prompt-input";
 
 export const Route = createFileRoute("/_authenticated/surveys/")({
@@ -18,12 +19,148 @@ export const Route = createFileRoute("/_authenticated/surveys/")({
   component: SurveysIndex,
 });
 
-const STARTERS = [
-  "Post-purchase NPS",
-  "New user onboarding pulse",
-  "Win/loss interview",
-  "Feature prioritization",
-  "Dashboard redesign feedback",
+type ContextQuestion = {
+  id: string;
+  question: string;
+  options: string[];
+  multi?: boolean;
+};
+
+type Starter = {
+  id: string;
+  label: string;
+  prompt: string;
+  context: ContextQuestion[];
+};
+
+const STARTERS: Starter[] = [
+  {
+    id: "post-purchase-nps",
+    label: "Post-purchase NPS",
+    prompt:
+      "Create a post-purchase NPS survey to measure customer satisfaction right after checkout, with follow-up questions about pricing clarity, onboarding, and perceived product value.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["New customers", "Repeat customers", "Enterprise buyers", "Self-serve buyers"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["Immediately after checkout", "24h after purchase", "After first use", "7 days after purchase"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Overall satisfaction", "Pricing clarity", "Onboarding", "Product value", "Support quality"],
+        multi: true,
+      },
+    ],
+  },
+  {
+    id: "onboarding-pulse",
+    label: "New user onboarding pulse",
+    prompt:
+      "Create a new user onboarding pulse survey to understand whether users understand the product value, where they got stuck, and what would help them activate faster.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["New signups", "Trial users", "Paid customers", "Churned users"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["After signup", "After first session", "After 7 days", "After onboarding completion"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Activation", "Confusion", "Product value", "Setup friction", "Intent to continue"],
+        multi: true,
+      },
+    ],
+  },
+  {
+    id: "win-loss",
+    label: "Win/loss interview",
+    prompt:
+      "Create a win/loss interview survey to understand why prospects did or did not convert in the last 30 days, including which alternatives they considered and what would have changed their decision.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["Closed-won", "Closed-lost", "Stalled deals", "Champions"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["Immediately after decision", "1 week later", "1 month later"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Decision drivers", "Competitor comparison", "Pricing", "Product gaps", "Sales experience"],
+        multi: true,
+      },
+    ],
+  },
+  {
+    id: "feature-prioritization",
+    label: "Feature prioritization",
+    prompt:
+      "Create a short feature prioritization survey for our top customers asking which upcoming capabilities would have the biggest impact on their workflow and why.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["Top 50 customers", "Power users", "All active users", "Design partners"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["Before roadmap planning", "Quarterly", "After a major release"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Impact", "Willingness to pay", "Use cases", "Ranking", "Blockers"],
+        multi: true,
+      },
+    ],
+  },
+  {
+    id: "dashboard-redesign",
+    label: "Dashboard redesign feedback",
+    prompt:
+      "Create a dashboard redesign feedback survey to evaluate clarity, speed, and usefulness of the new dashboard, and to surface confusing sections users want changed.",
+    context: [
+      {
+        id: "audience",
+        question: "Who is this survey for?",
+        options: ["All active users", "Power users", "New users", "Admins"],
+      },
+      {
+        id: "timing",
+        question: "When should they receive it?",
+        options: ["Right after they open the new dashboard", "After 3 sessions", "After 1 week"],
+      },
+      {
+        id: "focus",
+        question: "What do you care about most?",
+        options: ["Clarity", "Speed", "Usefulness", "Navigation", "Missing data"],
+        multi: true,
+      },
+    ],
+  },
+];
+
+const BUILD_STEPS = [
+  "Drafting questions",
+  "Applying tags",
+  "Checking question quality",
+  "Preparing preview",
 ];
 
 type Filter = "all" | "draft" | "live" | "closed";
@@ -104,6 +241,70 @@ function SurveysIndex() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't create"),
   });
 
+  // Smart chip state
+  const [activeStarterId, setActiveStarterId] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string[]>>({});
+  const activeStarter = useMemo(
+    () => STARTERS.find((s) => s.id === activeStarterId) ?? null,
+    [activeStarterId],
+  );
+
+  function selectStarter(s: Starter) {
+    setActiveStarterId(s.id);
+    setAnswers({});
+  }
+  function clearStarter() {
+    setActiveStarterId(null);
+    setAnswers({});
+  }
+  function toggleAnswer(q: ContextQuestion, option: string) {
+    setAnswers((prev) => {
+      const current = prev[q.id] ?? [];
+      if (q.multi) {
+        return {
+          ...prev,
+          [q.id]: current.includes(option)
+            ? current.filter((v) => v !== option)
+            : [...current, option],
+        };
+      }
+      return { ...prev, [q.id]: current[0] === option ? [] : [option] };
+    });
+  }
+
+  function buildFinalPrompt(text: string): string {
+    if (!activeStarter) return text;
+    const parts: string[] = [];
+    for (const q of activeStarter.context) {
+      const vals = answers[q.id];
+      if (vals && vals.length) parts.push(`${q.question} ${vals.join(", ")}`);
+    }
+    if (!parts.length) return text;
+    return `${text}\n\nContext:\n- ${parts.join("\n- ")}`;
+  }
+
+  // Animated build steps while creating (with active chip)
+  const [buildStep, setBuildStep] = useState(0);
+  useEffect(() => {
+    if (!create.isPending || !activeStarter) return;
+    setBuildStep(0);
+    const t = setInterval(() => {
+      setBuildStep((s) => Math.min(s + 1, BUILD_STEPS.length - 1));
+    }, 700);
+    return () => clearInterval(t);
+  }, [create.isPending, activeStarter]);
+
+  const showingBuild = create.isPending && activeStarter !== null;
+  const composerKey = activeStarterId ?? "free";
+  const composerSeed = activeStarter?.prompt ?? "";
+  const ctaLabel = activeStarter
+    ? create.isPending
+      ? "Composing…"
+      : "Compose survey"
+    : create.isPending
+      ? "Composing…"
+      : "Compose";
+
   return (
     <AppShell>
       <div className="relative min-h-[calc(100vh-1px)]">
@@ -124,50 +325,75 @@ function SurveysIndex() {
           </div>
 
           <div className="mx-auto mt-8 w-full max-w-3xl">
-            <PromptInput
-              className="rounded-2xl border-border bg-card/80 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur focus-within:border-signal/40 focus-within:ring-1 focus-within:ring-signal/30"
-              onSubmit={async (msg) => {
-                const text = msg.text?.trim();
-                if (!text) return;
-                create.mutate(text);
-              }}
-            >
-              <PromptInputTextarea
-                placeholder="Example: Create a post-purchase NPS survey with follow-up questions about pricing, onboarding, and product value."
-                className="min-h-[160px] text-base"
-              />
-              <PromptInputFooter className="justify-between">
-                <span className="px-2 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Press <kbd className="rounded border border-border px-1 py-0.5">⏎</kbd> to compose
-                </span>
-                <button
-                  type="submit"
-                  disabled={create.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-signal px-4 py-2 text-sm font-medium text-signal-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+            {showingBuild ? (
+              <BuildingCard label={activeStarter!.label} step={buildStep} />
+            ) : (
+              <PromptInputProvider key={composerKey} initialInput={composerSeed}>
+                <PromptInput
+                  className="rounded-2xl border-border bg-card/80 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur focus-within:border-signal/40 focus-within:ring-1 focus-within:ring-signal/30"
+                  onSubmit={async (msg) => {
+                    const text = msg.text?.trim();
+                    if (!text) return;
+                    create.mutate(buildFinalPrompt(text));
+                  }}
                 >
-                  {create.isPending ? "Composing…" : "Compose"}
-                  <ArrowUpRight className="h-4 w-4" />
-                </button>
-              </PromptInputFooter>
-            </PromptInput>
+                  <PromptInputTextarea
+                    placeholder="Example: Create a post-purchase NPS survey with follow-up questions about pricing, onboarding, and product value."
+                    className="min-h-[160px] text-base"
+                  />
+                  <PromptInputFooter className="justify-between">
+                    <span className="px-2 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                      Press <kbd className="rounded border border-border px-1 py-0.5">⏎</kbd> to compose
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={create.isPending}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-signal px-4 py-2 text-sm font-medium text-signal-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+                    >
+                      {ctaLabel}
+                      <ArrowUpRight className="h-4 w-4" />
+                    </button>
+                  </PromptInputFooter>
+                </PromptInput>
+              </PromptInputProvider>
+            )}
 
-            <div className="mt-5">
-              <div className="text-center text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                Start with a template
+            {!showingBuild && activeStarter && (
+              <CustomizePanel
+                starter={activeStarter}
+                answers={answers}
+                onToggle={toggleAnswer}
+                onClear={clearStarter}
+              />
+            )}
+
+            {!showingBuild && (
+              <div className="mt-5">
+                <div className="text-center text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Start with a template
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  {STARTERS.map((s) => {
+                    const active = activeStarterId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => (active ? clearStarter() : selectStarter(s))}
+                        disabled={create.isPending}
+                        className={
+                          "rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50 " +
+                          (active
+                            ? "border-signal/60 bg-signal/10 text-foreground shadow-[0_0_0_3px_rgba(255,122,69,0.08)]"
+                            : "border-border bg-card/40 text-muted-foreground hover:border-signal/40 hover:bg-card hover:text-foreground")
+                        }
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                {STARTERS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => create.mutate(s)}
-                    disabled={create.isPending}
-                    className="rounded-full border border-border bg-card/40 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-signal/40 hover:bg-card hover:text-foreground disabled:opacity-50"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Live now */}
@@ -411,6 +637,123 @@ function LiveSurveyCard({ survey }: { survey: SurveyRow }) {
           Open survey <ArrowUpRight className="h-3.5 w-3.5" />
         </a>
       </div>
+    </div>
+  );
+}
+
+function CustomizePanel({
+  starter,
+  answers,
+  onToggle,
+  onClear,
+}: {
+  starter: Starter;
+  answers: Record<string, string[]>;
+  onToggle: (q: ContextQuestion, option: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-border bg-card/60 p-4 backdrop-blur">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-signal/15 text-signal">
+            <Sparkles className="h-3 w-3" />
+          </span>
+          <div className="text-xs font-medium text-foreground">
+            Customize this survey
+            <span className="ml-1.5 text-muted-foreground">· optional</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <X className="h-3 w-3" /> Clear template
+        </button>
+      </div>
+      <div className="mt-3 space-y-3">
+        {starter.context.map((q) => {
+          const selected = answers[q.id] ?? [];
+          return (
+            <div key={q.id}>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                {q.question}
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {q.options.map((opt) => {
+                  const active = selected.includes(opt);
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => onToggle(q, opt)}
+                      className={
+                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors " +
+                        (active
+                          ? "border-signal/60 bg-signal/10 text-foreground"
+                          : "border-border bg-background/40 text-muted-foreground hover:border-signal/40 hover:text-foreground")
+                      }
+                    >
+                      {active && <Check className="h-3 w-3 text-signal" />}
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BuildingCard({ label, step }: { label: string; step: number }) {
+  return (
+    <div className="rounded-2xl border border-signal/30 bg-card/80 p-6 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur">
+      <div className="flex items-center gap-2.5">
+        <span className="relative grid h-6 w-6 place-items-center rounded-md bg-signal/15">
+          <span className="absolute inset-0 animate-ping rounded-md bg-signal/25" />
+          <Sparkles className="relative h-3.5 w-3.5 text-signal" />
+        </span>
+        <div className="font-display text-base font-medium tracking-tight">
+          Building your {label.toLowerCase()}...
+        </div>
+      </div>
+      <ul className="mt-5 space-y-2">
+        {BUILD_STEPS.map((s, i) => {
+          const done = i < step;
+          const active = i === step;
+          return (
+            <li key={s} className="flex items-center gap-2.5 text-sm">
+              <span
+                className={
+                  "grid h-4 w-4 place-items-center rounded-full border transition-colors " +
+                  (done
+                    ? "border-signal bg-signal text-signal-foreground"
+                    : active
+                      ? "border-signal/60 bg-signal/10"
+                      : "border-border bg-background/40")
+                }
+              >
+                {done ? (
+                  <Check className="h-2.5 w-2.5" />
+                ) : active ? (
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal" />
+                ) : null}
+              </span>
+              <span
+                className={
+                  done || active ? "text-foreground" : "text-muted-foreground"
+                }
+              >
+                {s}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
