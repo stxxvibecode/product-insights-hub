@@ -9,10 +9,52 @@ function publicClient() {
   });
 }
 
+type RequestMeta = {
+  ipAddress: string | null;
+  userAgent: string | null;
+  referrer: string | null;
+};
+
+async function requestMeta(): Promise<RequestMeta> {
+  const { getRequest } = await import("@tanstack/react-start/server");
+  const headers = getRequest()?.headers;
+  const forwarded = headers?.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ip = headers?.get("cf-connecting-ip") ?? headers?.get("x-real-ip") ?? forwarded ?? null;
+  return {
+    ipAddress: normalizeIp(ip),
+    userAgent: headers?.get("user-agent")?.slice(0, 500) ?? null,
+    referrer: headers?.get("referer")?.slice(0, 1000) ?? null,
+  };
+}
+
+function normalizeIp(value: string | null | undefined) {
+  if (!value || value.length > 45) return null;
+  return /^[0-9a-fA-F:.]+$/.test(value) ? value : null;
+}
+
+async function consumeResponseWrite(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  surveyId: string,
+  respondentToken: string,
+  meta: RequestMeta,
+) {
+  const { data, error } = await supabaseAdmin.rpc("consume_public_response_write", {
+    _survey_id: surveyId,
+    _respondent_token: respondentToken,
+    _ip_address: meta.ipAddress,
+    _user_agent: meta.userAgent,
+    _limit: 120,
+    _window_seconds: 900,
+  });
+  if (error) throw new Error(error.message);
+  const result = data?.[0];
+  if (!result?.allowed) {
+    throw new Error("Too many submissions. Please wait a few minutes and try again.");
+  }
+}
+
 export const getPublicSurvey = createServerFn({ method: "GET" })
-  .inputValidator((d: { slug: string }) =>
-    z.object({ slug: z.string().min(1).max(80) }).parse(d),
-  )
+  .inputValidator((d: { slug: string }) => z.object({ slug: z.string().min(1).max(80) }).parse(d))
   .handler(async ({ data }) => {
     const supabase = publicClient();
     const { data: survey, error } = await supabase
@@ -32,13 +74,14 @@ export const getPublicSurvey = createServerFn({ method: "GET" })
 
 export const startResponse = createServerFn({ method: "POST" })
   .inputValidator((d: { survey_id: string; respondent_token: string }) =>
-    z.object({ survey_id: z.string().uuid(), respondent_token: z.string().min(8).max(80) }).parse(d),
+    z
+      .object({ survey_id: z.string().uuid(), respondent_token: z.string().min(8).max(80) })
+      .parse(d),
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const meta = await requestMeta();
     const id = crypto.randomUUID();
-    // Look up the current live version so we can stamp it on the response.
-    // Service role bypasses RLS; we enforce the live check in app code.
     const { data: survey } = await supabaseAdmin
       .from("surveys")
       .select("version, status, is_edit_draft")
@@ -47,28 +90,31 @@ export const startResponse = createServerFn({ method: "POST" })
     if (!survey || survey.status !== "live" || survey.is_edit_draft) {
       throw new Error("Survey is not live");
     }
-    const { error } = await supabaseAdmin
-      .from("responses")
-      .insert({
-        id,
-        survey_id: data.survey_id,
-        respondent_token: data.respondent_token,
-        survey_version: survey.version,
-      });
+    await consumeResponseWrite(supabaseAdmin, data.survey_id, data.respondent_token, meta);
+    const { error } = await supabaseAdmin.from("responses").insert({
+      id,
+      survey_id: data.survey_id,
+      respondent_token: data.respondent_token,
+      survey_version: survey.version,
+      ip_address: meta.ipAddress,
+      user_agent: meta.userAgent,
+      referrer: meta.referrer,
+    });
     if (error) throw new Error(error.message);
     return { id };
   });
 
 export const submitAnswer = createServerFn({ method: "POST" })
-  .inputValidator((d: { response_id: string; question_id: string; respondent_token: string; value: unknown }) =>
-    z
-      .object({
-        response_id: z.string().uuid(),
-        question_id: z.string().uuid(),
-        respondent_token: z.string().min(8).max(80),
-        value: z.unknown(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: { response_id: string; question_id: string; respondent_token: string; value: unknown }) =>
+      z
+        .object({
+          response_id: z.string().uuid(),
+          question_id: z.string().uuid(),
+          respondent_token: z.string().min(8).max(80),
+          value: z.unknown(),
+        })
+        .parse(d),
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -79,9 +125,15 @@ export const submitAnswer = createServerFn({ method: "POST" })
       .eq("id", data.response_id)
       .maybeSingle();
     if (responseError) throw new Error(responseError.message);
-    if (!response || response.respondent_token !== data.respondent_token || response.surveys.status !== "live") {
+    if (
+      !response ||
+      response.respondent_token !== data.respondent_token ||
+      response.surveys.status !== "live"
+    ) {
       throw new Error("Response not found or survey is not live.");
     }
+    const meta = await requestMeta();
+    await consumeResponseWrite(supabaseAdmin, response.survey_id, data.respondent_token, meta);
 
     const { data: question, error: questionError } = await supabaseAdmin
       .from("questions")
@@ -93,31 +145,29 @@ export const submitAnswer = createServerFn({ method: "POST" })
       throw new Error("Question does not belong to this survey.");
     }
 
-    const { error } = await supabaseAdmin
-      .from("answers")
-      .upsert(
-        {
-          response_id: data.response_id,
-          question_id: data.question_id,
-          value: (data.value ?? null) as Json,
-        },
-        { onConflict: "response_id,question_id" },
-      );
+    const { error } = await supabaseAdmin.from("answers").upsert(
+      {
+        response_id: data.response_id,
+        question_id: data.question_id,
+        value: (data.value ?? null) as Json,
+      },
+      { onConflict: "response_id,question_id" },
+    );
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 export const completeResponse = createServerFn({ method: "POST" })
   .inputValidator((d: { response_id: string; respondent_token: string }) =>
-    z.object({ response_id: z.string().uuid(), respondent_token: z.string().min(8).max(80) }).parse(d),
+    z
+      .object({ response_id: z.string().uuid(), respondent_token: z.string().min(8).max(80) })
+      .parse(d),
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Verify ownership via respondent_token and that the parent survey is
-    // still live before stamping completed_at. Mirrors submitAnswer's guard.
     const { data: response, error: lookupError } = await supabaseAdmin
       .from("responses")
-      .select("respondent_token, surveys!inner(status, is_edit_draft)")
+      .select("survey_id, respondent_token, surveys!inner(status, is_edit_draft)")
       .eq("id", data.response_id)
       .maybeSingle();
     if (lookupError) throw new Error(lookupError.message);
@@ -129,6 +179,8 @@ export const completeResponse = createServerFn({ method: "POST" })
     ) {
       throw new Error("Response not found or survey is not live.");
     }
+    const meta = await requestMeta();
+    await consumeResponseWrite(supabaseAdmin, response.survey_id, data.respondent_token, meta);
     const { error } = await supabaseAdmin
       .from("responses")
       .update({ completed_at: new Date().toISOString() })

@@ -5,9 +5,7 @@ import type { Json } from "@/integrations/supabase/types";
 
 export const getSurveyInsights = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { survey_id: string }) =>
-    z.object({ survey_id: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { survey_id: string }) => z.object({ survey_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: survey, error: sErr } = await context.supabase
       .from("surveys")
@@ -22,43 +20,108 @@ export const getSurveyInsights = createServerFn({ method: "GET" })
       .order("position", { ascending: true });
     const { data: responses } = await context.supabase
       .from("responses")
-      .select("id, started_at, completed_at")
+      .select("id, started_at, completed_at, user_agent, referrer, ip_address")
       .eq("survey_id", data.survey_id);
     const responseIds = (responses ?? []).map((r) => r.id);
-    let answers: { question_id: string; value: Json; value_text: string | null; value_number: number | null }[] = [];
+    let answers: {
+      response_id: string;
+      question_id: string;
+      value: Json;
+      value_text: string | null;
+      value_number: number | null;
+    }[] = [];
     if (responseIds.length) {
       const { data: ans } = await context.supabase
         .from("answers")
-        .select("question_id, value, value_text, value_number")
+        .select("response_id, question_id, value, value_text, value_number")
         .in("response_id", responseIds);
       answers = ans ?? [];
+    }
+    const questionPositions = new Map((questions ?? []).map((q) => [q.id, q.position]));
+    const answersByResponse = new Map<string, number[]>();
+    for (const answer of answers) {
+      const position = questionPositions.get(answer.question_id);
+      if (position === undefined) continue;
+      const positions = answersByResponse.get(answer.response_id) ?? [];
+      positions.push(position);
+      answersByResponse.set(answer.response_id, positions);
     }
     const total = responses?.length ?? 0;
     const completed = (responses ?? []).filter((r) => r.completed_at).length;
     const avgMs =
       (responses ?? [])
         .filter((r) => r.completed_at)
-        .reduce((acc, r) => acc + (new Date(r.completed_at!).getTime() - new Date(r.started_at).getTime()), 0) /
-      (completed || 1);
+        .reduce(
+          (acc, r) =>
+            acc + (new Date(r.completed_at!).getTime() - new Date(r.started_at).getTime()),
+          0,
+        ) / (completed || 1);
+    const now = Date.now();
+    const recentStarts = (responses ?? []).filter(
+      (r) => now - new Date(r.started_at).getTime() <= 7 * 86400_000,
+    ).length;
+    const questionStats = (questions ?? []).map((q, index, list) => {
+      const answerCount = answers.filter((a) => a.question_id === q.id).length;
+      const previousPosition = index > 0 ? list[index - 1]?.position : null;
+      const reachedCount = (responses ?? []).filter((r) => {
+        if (index === 0) return true;
+        if (r.completed_at) return true;
+        const positions = answersByResponse.get(r.id) ?? [];
+        return previousPosition !== null && positions.some((p) => p >= previousPosition);
+      }).length;
+      const dropOffCount = (responses ?? []).filter((r) => {
+        if (r.completed_at) return false;
+        const positions = answersByResponse.get(r.id) ?? [];
+        if (positions.length === 0) return index === 0;
+        return Math.max(...positions) === q.position;
+      }).length;
+      return {
+        question_id: q.id,
+        reachedCount,
+        answerCount,
+        answerRate: reachedCount ? answerCount / reachedCount : 0,
+        dropOffCount,
+        dropOffRate: total ? dropOffCount / total : 0,
+      };
+    });
+    const referrers = Object.entries(
+      (responses ?? []).reduce<Record<string, number>>((acc, r) => {
+        let label = "Direct";
+        if (r.referrer) {
+          try {
+            label = new URL(r.referrer).hostname;
+          } catch {
+            label = "Other";
+          }
+        }
+        acc[label] = (acc[label] ?? 0) + 1;
+        return acc;
+      }, {}),
+    )
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
     return {
       survey,
       questions: questions ?? [],
       responses: responses ?? [],
       answers,
+      questionStats,
+      referrers,
       stats: {
         total,
         completed,
+        abandoned: total - completed,
         completionRate: total ? completed / total : 0,
         avgSeconds: completed ? Math.round(avgMs / 1000) : 0,
+        recentStarts,
       },
     };
   });
 
 export const listResponses = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { survey_id: string }) =>
-    z.object({ survey_id: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { survey_id: string }) => z.object({ survey_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: responses } = await context.supabase
       .from("responses")
@@ -67,7 +130,13 @@ export const listResponses = createServerFn({ method: "GET" })
       .order("started_at", { ascending: false })
       .limit(200);
     const ids = (responses ?? []).map((r) => r.id);
-    let answers: { response_id: string; question_id: string; value: Json; value_text: string | null; value_number: number | null }[] = [];
+    let answers: {
+      response_id: string;
+      question_id: string;
+      value: Json;
+      value_text: string | null;
+      value_number: number | null;
+    }[] = [];
     if (ids.length) {
       const { data: ans } = await context.supabase
         .from("answers")
@@ -115,7 +184,14 @@ export const getSourceOfTruth = createServerFn({ method: "GET" })
     ]);
     const questionIds = (questions ?? []).map((q) => q.id);
     const responseIds = (responses ?? []).map((r) => r.id);
-    let answers: { response_id: string; question_id: string; value: Json; value_text: string | null; value_number: number | null; created_at: string }[] = [];
+    let answers: {
+      response_id: string;
+      question_id: string;
+      value: Json;
+      value_text: string | null;
+      value_number: number | null;
+      created_at: string;
+    }[] = [];
     if (responseIds.length) {
       const { data: ans } = await context.supabase
         .from("answers")

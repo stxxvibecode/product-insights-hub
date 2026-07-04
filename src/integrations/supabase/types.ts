@@ -197,6 +197,7 @@ export type Database = {
         Row: {
           completed_at: string | null
           id: string
+          ip_address: string | null
           referrer: string | null
           respondent_token: string | null
           started_at: string
@@ -207,6 +208,7 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           id?: string
+          ip_address?: string | null
           referrer?: string | null
           respondent_token?: string | null
           started_at?: string
@@ -217,6 +219,7 @@ export type Database = {
         Update: {
           completed_at?: string | null
           id?: string
+          ip_address?: string | null
           referrer?: string | null
           respondent_token?: string | null
           started_at?: string
@@ -410,7 +413,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      consume_public_response_write: {
+        Args: {
+          _survey_id: string
+          _respondent_token: string
+          _ip_address?: string | null
+          _user_agent?: string | null
+          _limit?: number
+          _window_seconds?: number
+        }
+        Returns: {
+          allowed: boolean
+          write_count: number
+          reset_at: string
+        }[]
+      }
     }
     Enums: {
       question_type:
