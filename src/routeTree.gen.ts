@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SSlugRouteImport } from './routes/s.$slug'
+import { Route as AppDashboardRouteImport } from './routes/app.dashboard'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedTagsRouteImport } from './routes/_authenticated/tags'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -42,6 +43,11 @@ const IndexRoute = IndexRouteImport.update({
 const SSlugRoute = SSlugRouteImport.update({
   id: '/s/$slug',
   path: '/s/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/app/dashboard',
+  path: '/app/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedTemplatesRoute = AuthenticatedTemplatesRouteImport.update({
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
+  '/app/dashboard': typeof AppDashboardRoute
   '/s/$slug': typeof SSlugRoute
   '/surveys/$id': typeof AuthenticatedSurveysIdRouteWithChildren
   '/surveys/': typeof AuthenticatedSurveysIndexRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tags': typeof AuthenticatedTagsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
+  '/app/dashboard': typeof AppDashboardRoute
   '/s/$slug': typeof SSlugRoute
   '/surveys/$id': typeof AuthenticatedSurveysIdRouteWithChildren
   '/surveys': typeof AuthenticatedSurveysIndexRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tags': typeof AuthenticatedTagsRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
+  '/app/dashboard': typeof AppDashboardRoute
   '/s/$slug': typeof SSlugRoute
   '/_authenticated/surveys/$id': typeof AuthenticatedSurveysIdRouteWithChildren
   '/_authenticated/surveys/': typeof AuthenticatedSurveysIndexRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tags'
     | '/templates'
+    | '/app/dashboard'
     | '/s/$slug'
     | '/surveys/$id'
     | '/surveys/'
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tags'
     | '/templates'
+    | '/app/dashboard'
     | '/s/$slug'
     | '/surveys/$id'
     | '/surveys'
@@ -198,6 +209,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/tags'
     | '/_authenticated/templates'
+    | '/app/dashboard'
     | '/s/$slug'
     | '/_authenticated/surveys/$id'
     | '/_authenticated/surveys/'
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  AppDashboardRoute: typeof AppDashboardRoute
   SSlugRoute: typeof SSlugRoute
   ApiChatSurveysIdRoute: typeof ApiChatSurveysIdRoute
 }
@@ -241,6 +254,13 @@ declare module '@tanstack/react-router' {
       path: '/s/$slug'
       fullPath: '/s/$slug'
       preLoaderRoute: typeof SSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app/dashboard': {
+      id: '/app/dashboard'
+      path: '/app/dashboard'
+      fullPath: '/app/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/templates': {
@@ -368,6 +388,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  AppDashboardRoute: AppDashboardRoute,
   SSlugRoute: SSlugRoute,
   ApiChatSurveysIdRoute: ApiChatSurveysIdRoute,
 }
