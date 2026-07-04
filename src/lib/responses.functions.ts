@@ -35,18 +35,19 @@ export const startResponse = createServerFn({ method: "POST" })
     z.object({ survey_id: z.string().uuid(), respondent_token: z.string().min(8).max(80) }).parse(d),
   )
   .handler(async ({ data }) => {
-    const supabase = publicClient();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const id = crypto.randomUUID();
     // Look up the current live version so we can stamp it on the response.
-    const { data: survey } = await supabase
+    // Service role bypasses RLS; we enforce the live check in app code.
+    const { data: survey } = await supabaseAdmin
       .from("surveys")
-      .select("version, status")
+      .select("version, status, is_edit_draft")
       .eq("id", data.survey_id)
       .maybeSingle();
-    if (!survey || survey.status !== "live") {
+    if (!survey || survey.status !== "live" || survey.is_edit_draft) {
       throw new Error("Survey is not live");
     }
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("responses")
       .insert({
         id,
@@ -107,12 +108,28 @@ export const submitAnswer = createServerFn({ method: "POST" })
   });
 
 export const completeResponse = createServerFn({ method: "POST" })
-  .inputValidator((d: { response_id: string }) =>
-    z.object({ response_id: z.string().uuid() }).parse(d),
+  .inputValidator((d: { response_id: string; respondent_token: string }) =>
+    z.object({ response_id: z.string().uuid(), respondent_token: z.string().min(8).max(80) }).parse(d),
   )
   .handler(async ({ data }) => {
-    const supabase = publicClient();
-    const { error } = await supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Verify ownership via respondent_token and that the parent survey is
+    // still live before stamping completed_at. Mirrors submitAnswer's guard.
+    const { data: response, error: lookupError } = await supabaseAdmin
+      .from("responses")
+      .select("respondent_token, surveys!inner(status, is_edit_draft)")
+      .eq("id", data.response_id)
+      .maybeSingle();
+    if (lookupError) throw new Error(lookupError.message);
+    if (
+      !response ||
+      response.respondent_token !== data.respondent_token ||
+      response.surveys.status !== "live" ||
+      response.surveys.is_edit_draft
+    ) {
+      throw new Error("Response not found or survey is not live.");
+    }
+    const { error } = await supabaseAdmin
       .from("responses")
       .update({ completed_at: new Date().toISOString() })
       .eq("id", data.response_id);

@@ -72,7 +72,7 @@ function PublicSurvey() {
         await submit({ data: { response_id: rid, question_id: q.id, respondent_token: token, value } });
       }
       if (index === questions.length - 1) {
-        await complete({ data: { response_id: rid } });
+        await complete({ data: { response_id: rid, respondent_token: token } });
         setStage("done");
       } else {
         setIndex((i) => i + 1);
