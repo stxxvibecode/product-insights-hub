@@ -913,9 +913,10 @@ function ShareTab({
 
 function InsightsTab({ surveyId }: { surveyId: string }) {
   const fn = useServerFn(getSurveyInsights);
+  const [version, setVersion] = useState<"all" | "latest" | number>("all");
   const { data, isLoading } = useQuery({
-    queryKey: ["insights", surveyId],
-    queryFn: () => fn({ data: { survey_id: surveyId } }),
+    queryKey: ["insights", surveyId, version],
+    queryFn: () => fn({ data: { survey_id: surveyId, version } }),
   });
   if (isLoading || !data) {
     return (
@@ -929,6 +930,9 @@ function InsightsTab({ surveyId }: { surveyId: string }) {
     null,
   );
   const mostDroppedQuestion = data.questions.find((q) => q.id === mostDropped?.question_id);
+  const vf = data.versionFilter;
+  const selectedIsHistorical =
+    typeof vf.selected === "number" && vf.selected !== vf.currentVersion;
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -943,10 +947,40 @@ function InsightsTab({ surveyId }: { surveyId: string }) {
             Completion health, question drop-off, and answer summaries for this survey.
           </p>
         </div>
-        <div className="rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground">
-          Last 7 days · {data.stats.recentStarts} starts
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground">
+            <span className="uppercase tracking-[0.14em]">Version</span>
+            <select
+              value={String(version)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setVersion(
+                  v === "all" || v === "latest" ? (v as "all" | "latest") : Number(v),
+                );
+              }}
+              className="bg-transparent text-foreground outline-none"
+            >
+              <option value="all">All versions</option>
+              <option value="latest">Latest (v{vf.currentVersion})</option>
+              {vf.availableVersions.map((v) => (
+                <option key={v} value={v}>
+                  v{v}
+                  {v === vf.currentVersion ? " (current)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground">
+            Last 7 days · {data.stats.recentStarts} starts
+          </div>
         </div>
       </div>
+      {selectedIsHistorical && (
+        <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] px-4 py-2 text-xs text-amber-200">
+          Viewing a historical snapshot (v{vf.selected}). Questions shown match this version, so
+          older responses stay accurate even if the live survey has changed.
+        </div>
+      )}
 
       <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Stat icon={Users} label="Responses" value={data.stats.total} />
