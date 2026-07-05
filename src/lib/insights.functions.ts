@@ -5,23 +5,78 @@ import type { Json } from "@/integrations/supabase/types";
 
 export const getSurveyInsights = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { survey_id: string }) => z.object({ survey_id: z.string().uuid() }).parse(d))
+  .inputValidator((d: { survey_id: string; version?: "all" | "latest" | number }) =>
+    z
+      .object({
+        survey_id: z.string().uuid(),
+        version: z
+          .union([z.literal("all"), z.literal("latest"), z.number().int().positive()])
+          .optional()
+          .default("all"),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { data: survey, error: sErr } = await context.supabase
       .from("surveys")
-      .select("id, title")
+      .select("id, title, version")
       .eq("id", data.survey_id)
       .single();
     if (sErr) throw new Error(sErr.message);
-    const { data: questions } = await context.supabase
+    // Historical versions available for this survey.
+    const { data: snapshots } = await context.supabase
+      .from("survey_versions")
+      .select("version, questions, title, published_at")
+      .eq("survey_id", data.survey_id)
+      .order("version", { ascending: true });
+    const pastVersions = (snapshots ?? []).map((s) => s.version);
+    const currentVersion = survey.version ?? 1;
+    const availableVersions = Array.from(new Set([...pastVersions, currentVersion])).sort(
+      (a, b) => a - b,
+    );
+    const selectedVersion: "all" | "latest" | number =
+      data.version === "latest" ? currentVersion : data.version;
+
+    // Question set: use snapshot when viewing a specific historical version.
+    let questions:
+      | { id: string; title: string; type: string; position: number; config: Json }[]
+      | null = null;
+    if (typeof selectedVersion === "number" && selectedVersion !== currentVersion) {
+      const snap = (snapshots ?? []).find((s) => s.version === selectedVersion);
+      const snapQs = (snap?.questions ?? []) as unknown as {
+        id: string;
+        title: string;
+        type: string;
+        position: number;
+        config: Json;
+      }[];
+      questions = snapQs
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((q) => ({
+          id: q.id,
+          title: q.title,
+          type: q.type,
+          position: q.position,
+          config: q.config,
+        }));
+    }
+    if (!questions) {
+      const { data: liveQs } = await context.supabase
       .from("questions")
       .select("id, title, type, position, config")
       .eq("survey_id", data.survey_id)
       .order("position", { ascending: true });
-    const { data: responses } = await context.supabase
+      questions = liveQs ?? [];
+    }
+    let responsesQuery = context.supabase
       .from("responses")
-      .select("id, started_at, completed_at, user_agent, referrer, ip_address")
+      .select("id, started_at, completed_at, user_agent, referrer, survey_version")
       .eq("survey_id", data.survey_id);
+    if (typeof selectedVersion === "number") {
+      responsesQuery = responsesQuery.eq("survey_version", selectedVersion);
+    }
+    const { data: responses } = await responsesQuery;
     const responseIds = (responses ?? []).map((r) => r.id);
     let answers: {
       response_id: string;
@@ -115,6 +170,11 @@ export const getSurveyInsights = createServerFn({ method: "GET" })
         completionRate: total ? completed / total : 0,
         avgSeconds: completed ? Math.round(avgMs / 1000) : 0,
         recentStarts,
+      },
+      versionFilter: {
+        selected: data.version,
+        currentVersion,
+        availableVersions,
       },
     };
   });
