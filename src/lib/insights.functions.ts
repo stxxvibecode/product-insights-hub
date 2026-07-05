@@ -71,7 +71,7 @@ export const getSurveyInsights = createServerFn({ method: "GET" })
     }
     let responsesQuery = context.supabase
       .from("responses")
-      .select("id, started_at, completed_at, user_agent, referrer, ip_address, survey_version")
+      .select("id, started_at, completed_at, user_agent, referrer, survey_version")
       .eq("survey_id", data.survey_id);
     if (typeof selectedVersion === "number") {
       responsesQuery = responsesQuery.eq("survey_version", selectedVersion);
