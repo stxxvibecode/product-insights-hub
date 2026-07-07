@@ -20,6 +20,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Logo } from "./Logo";
 import { listRecentSurveys } from "@/lib/surveys.functions";
+import { ThemeToggle } from "./ThemeToggle";
 
 const authRouteApi = getRouteApi("/_authenticated");
 
@@ -105,9 +106,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="border-b border-border bg-background/80 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between px-4 py-3">
             <Logo to="/dashboard" />
-            <button onClick={signOut} className="text-xs text-muted-foreground">
-              Sign out
-            </button>
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <button onClick={signOut} className="text-xs text-muted-foreground">
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
         <main className="min-h-screen">{children}</main>
@@ -134,16 +138,15 @@ function Sidebar({
       className="fixed inset-y-0 left-0 z-30 hidden w-[272px] flex-col border-r px-3 py-4 lg:flex"
       style={
         {
-          // Light workspace surface, scoped to the sidebar only.
-          background: "oklch(0.985 0.006 85)",
-          color: "oklch(0.22 0.012 250)",
-          borderColor: "oklch(0.22 0.012 250 / 10%)",
-          ["--sb-fg" as string]: "oklch(0.22 0.012 250)",
-          ["--sb-muted" as string]: "oklch(0.48 0.014 250)",
-          ["--sb-hover" as string]: "oklch(0.22 0.012 250 / 5%)",
-          ["--sb-active" as string]: "oklch(0.22 0.012 250 / 8%)",
-          ["--sb-border" as string]: "oklch(0.22 0.012 250 / 10%)",
-          ["--sb-signal" as string]: "oklch(0.66 0.20 35)",
+          background: "var(--sidebar)",
+          color: "var(--sidebar-foreground)",
+          borderColor: "var(--sidebar-border)",
+          ["--sb-fg" as string]: "var(--sidebar-foreground)",
+          ["--sb-muted" as string]: "color-mix(in oklab, var(--sidebar-foreground) 60%, transparent)",
+          ["--sb-hover" as string]: "var(--sidebar-accent)",
+          ["--sb-active" as string]: "color-mix(in oklab, var(--sidebar-foreground) 10%, transparent)",
+          ["--sb-border" as string]: "var(--sidebar-border)",
+          ["--sb-signal" as string]: "var(--signal)",
         } as React.CSSProperties
       }
     >
@@ -221,16 +224,19 @@ function Sidebar({
           >
             {email ?? "—"}
           </div>
-          <button
-            onClick={onSignOut}
-            className="grid h-8 w-8 place-items-center rounded-lg transition-colors"
-            style={{ color: "var(--sb-muted)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--sb-hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            aria-label="Sign out"
-          >
-            <LogOut className="h-4 w-4" strokeWidth={1.75} />
-          </button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <button
+              onClick={onSignOut}
+              className="grid h-8 w-8 place-items-center rounded-lg transition-colors"
+              style={{ color: "var(--sb-muted)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--sb-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </div>
         </div>
       </div>
     </aside>
@@ -287,10 +293,10 @@ function WorkspaceSelector() {
       className="flex w-full items-center gap-2.5 rounded-xl border px-2 py-2 text-left transition-colors"
       style={{
         borderColor: "var(--sb-border)",
-        background: "oklch(1 0 0 / 60%)",
+        background: "var(--sb-hover)",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "oklch(1 0 0)")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "oklch(1 0 0 / 60%)")}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--sb-active)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "var(--sb-hover)")}
     >
       <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg" style={{ background: "var(--sb-signal)" }}>
         <span className="absolute inset-[6px] rounded-[5px] bg-white/90" />
@@ -332,23 +338,23 @@ function ActionCard({
       className="flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors"
       style={{
         borderColor: "var(--sb-border)",
-        background: accent ? "oklch(0.66 0.20 35 / 8%)" : "oklch(1 0 0 / 60%)",
+        background: accent ? "color-mix(in oklab, var(--signal) 10%, transparent)" : "var(--sb-hover)",
       }}
       onMouseEnter={(e) =>
         (e.currentTarget.style.background = accent
-          ? "oklch(0.66 0.20 35 / 14%)"
-          : "oklch(1 0 0)")
+          ? "color-mix(in oklab, var(--signal) 18%, transparent)"
+          : "var(--sb-active)")
       }
       onMouseLeave={(e) =>
         (e.currentTarget.style.background = accent
-          ? "oklch(0.66 0.20 35 / 8%)"
-          : "oklch(1 0 0 / 60%)")
+          ? "color-mix(in oklab, var(--signal) 10%, transparent)"
+          : "var(--sb-hover)")
       }
     >
       <span
         className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
         style={{
-          background: accent ? "var(--sb-signal)" : "oklch(0.22 0.012 250 / 6%)",
+          background: accent ? "var(--sb-signal)" : "var(--sb-active)",
           color: accent ? "white" : "var(--sb-fg)",
         }}
       >

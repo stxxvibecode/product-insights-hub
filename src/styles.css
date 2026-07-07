@@ -62,7 +62,47 @@
 
 :root {
   --radius: 0.75rem;
-  /* Deep ink canvas, warm ivory text, signal coral accent */
+  /* Light mode: warm ivory canvas, deep ink text, signal coral accent */
+  --background: oklch(0.985 0.006 85);
+  --foreground: oklch(0.22 0.012 250);
+  --ink: oklch(0.155 0.012 250);
+  --ivory: oklch(0.955 0.018 85);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.012 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.012 250);
+  --primary: oklch(0.22 0.012 250);
+  --primary-foreground: oklch(0.985 0.006 85);
+  --secondary: oklch(0.955 0.008 85);
+  --secondary-foreground: oklch(0.22 0.012 250);
+  --muted: oklch(0.955 0.008 85);
+  --muted-foreground: oklch(0.48 0.014 250);
+  --accent: oklch(0.955 0.008 85);
+  --accent-foreground: oklch(0.22 0.012 250);
+  --signal: oklch(0.66 0.20 35);
+  --signal-foreground: oklch(0.985 0.006 85);
+  --destructive: oklch(0.62 0.22 25);
+  --destructive-foreground: oklch(0.985 0.006 85);
+  --border: oklch(0.22 0.012 250 / 10%);
+  --input: oklch(0.22 0.012 250 / 14%);
+  --ring: oklch(0.66 0.20 35 / 60%);
+  --chart-1: oklch(0.66 0.20 35);
+  --chart-2: oklch(0.72 0.15 85);
+  --chart-3: oklch(0.58 0.14 200);
+  --chart-4: oklch(0.62 0.16 145);
+  --chart-5: oklch(0.58 0.18 305);
+  --sidebar: oklch(0.985 0.006 85);
+  --sidebar-foreground: oklch(0.22 0.012 250);
+  --sidebar-primary: oklch(0.66 0.20 35);
+  --sidebar-primary-foreground: oklch(0.985 0.006 85);
+  --sidebar-accent: oklch(0.22 0.012 250 / 5%);
+  --sidebar-accent-foreground: oklch(0.22 0.012 250);
+  --sidebar-border: oklch(0.22 0.012 250 / 10%);
+  --sidebar-ring: oklch(0.66 0.20 35 / 60%);
+}
+
+.dark {
+  /* Dark mode: deep ink canvas, warm ivory text, signal coral accent */
   --background: oklch(0.155 0.012 250);
   --foreground: oklch(0.955 0.018 85);
   --ink: oklch(0.155 0.012 250);
@@ -99,10 +139,6 @@
   --sidebar-accent-foreground: oklch(0.955 0.018 85);
   --sidebar-border: oklch(1 0 0 / 6%);
   --sidebar-ring: oklch(0.71 0.21 35 / 60%);
-}
-
-.dark {
-  /* App is dark-first; .dark mirrors :root */
 }
 
 @layer base {
