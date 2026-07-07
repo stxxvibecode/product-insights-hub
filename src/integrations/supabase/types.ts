@@ -405,6 +405,60 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_brand_profiles: {
+        Row: {
+          accent_color: string
+          background_color: string
+          brand_name: string
+          button_style: string
+          created_at: string
+          default_thank_you_message: string
+          font_style: string
+          form_layout: string
+          logo_url: string | null
+          primary_color: string
+          product_description: string
+          text_color: string
+          tone: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          accent_color?: string
+          background_color?: string
+          brand_name?: string
+          button_style?: string
+          created_at?: string
+          default_thank_you_message?: string
+          font_style?: string
+          form_layout?: string
+          logo_url?: string | null
+          primary_color?: string
+          product_description?: string
+          text_color?: string
+          tone?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          accent_color?: string
+          background_color?: string
+          brand_name?: string
+          button_style?: string
+          created_at?: string
+          default_thank_you_message?: string
+          font_style?: string
+          form_layout?: string
+          logo_url?: string | null
+          primary_color?: string
+          product_description?: string
+          text_color?: string
+          tone?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
