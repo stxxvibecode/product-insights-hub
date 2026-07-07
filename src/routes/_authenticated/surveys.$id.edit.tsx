@@ -53,6 +53,11 @@ import { ThemePanel } from "@/components/ThemePanel";
 import { ReviewChangesDialog } from "@/components/edit-draft-modals";
 import { CreateEditDraftDialog } from "@/components/edit-draft-modals";
 import { themeStyle, backgroundClass, DEFAULT_THEME, type SurveyTheme } from "@/lib/survey-theme";
+import {
+  getWorkspaceBrandProfile,
+  resolveWorkspaceBrand,
+  themeFromBrand,
+} from "@/lib/brand.functions";
 
 export const Route = createFileRoute("/_authenticated/surveys/$id/edit")({
   head: () => ({ meta: [{ title: "Edit survey — Insightform" }] }),
@@ -71,10 +76,15 @@ function SurveyBuilder() {
   const updateQ = useServerFn(updateQuestion);
   const deleteQ = useServerFn(deleteQuestion);
   const reorderQ = useServerFn(reorderQuestions);
+  const fetchBrand = useServerFn(getWorkspaceBrandProfile);
 
   const { data, isLoading } = useQuery({
     queryKey: ["survey", id],
     queryFn: () => fetchSurvey({ data: { id } }),
+  });
+  const brandQ = useQuery({
+    queryKey: ["workspace-brand"],
+    queryFn: () => fetchBrand(),
   });
 
   const [tab, setTab] = useState<Tab>("build");
@@ -94,10 +104,24 @@ function SurveyBuilder() {
   }, [data?.questions, selectedId]);
 
   // Theme state — mirrors Compose pattern with debounced save.
-  const remoteTheme = useMemo<SurveyTheme>(
-    () => ({ ...DEFAULT_THEME, ...((data?.survey.theme as SurveyTheme | null) ?? {}) }),
-    [data?.survey.theme],
+  // Inheritance: Insightform defaults → workspace brand → form theme → form brand overrides.
+  const resolvedBrand = useMemo(
+    () =>
+      resolveWorkspaceBrand(
+        brandQ.data ?? null,
+        ((data?.survey.brand_overrides as Record<string, unknown> | null) ?? {}) as never,
+      ),
+    [brandQ.data, data?.survey.brand_overrides],
   );
+  const hasBrandOverrides = useMemo(() => {
+    const o = (data?.survey.brand_overrides as Record<string, unknown> | null) ?? {};
+    return Object.keys(o).length > 0;
+  }, [data?.survey.brand_overrides]);
+  const remoteTheme = useMemo<SurveyTheme>(() => {
+    const brandTheme = themeFromBrand(resolvedBrand);
+    const formTheme = (data?.survey.theme as SurveyTheme | null) ?? {};
+    return { ...DEFAULT_THEME, ...brandTheme, ...formTheme };
+  }, [resolvedBrand, data?.survey.theme]);
   const [theme, setTheme] = useState<SurveyTheme>(remoteTheme);
   useEffect(() => {
     setTheme(remoteTheme);
@@ -107,7 +131,13 @@ function SurveyBuilder() {
     setTheme(next);
     if (themeSaveRef.current) clearTimeout(themeSaveRef.current);
     themeSaveRef.current = setTimeout(() => {
-      updateSurveyFn({ data: { id, theme: next as Record<string, unknown> } })
+      const designPatch: Record<string, unknown> = {};
+      if (next.preset !== undefined) designPatch.preset = next.preset;
+      if (next.accent !== undefined) designPatch.accent = next.accent;
+      if (next.background !== undefined) designPatch.background = next.background;
+      if (next.font !== undefined) designPatch.font = next.font;
+      if (next.radius !== undefined) designPatch.radius = next.radius;
+      updateSurveyFn({ data: { id, theme: designPatch } })
         .then(() => qc.invalidateQueries({ queryKey: ["survey", id] }))
         .catch((e: Error) => toast.error(e.message));
     }, 400);
@@ -421,6 +451,10 @@ function SurveyBuilder() {
         <ShareTab
           slug={data.survey.slug}
           status={data.survey.status}
+          title={data.survey.title}
+          questionCount={data.questions.length}
+          hasOverrides={hasBrandOverrides}
+          brandName={brandQ.data?.brand_name || "Insightform"}
           onDelete={() => mDelSurvey.mutate()}
         />
       )}
@@ -852,21 +886,44 @@ function PreviewTab({
 function ShareTab({
   slug,
   status,
+  title,
+  questionCount,
+  hasOverrides,
+  brandName,
   onDelete,
 }: {
   slug: string;
   status: "draft" | "live" | "closed";
+  title: string;
+  questionCount: number;
+  hasOverrides: boolean;
+  brandName: string;
   onDelete: () => void;
 }) {
   const url = typeof window !== "undefined" ? `${window.location.origin}/s/${slug}` : `/s/${slug}`;
+  const embedCode = `<iframe src="${url}" width="100%" height="640" style="border:0;border-radius:12px" title="${title}"></iframe>`;
+  const estMinutes = Math.max(1, Math.round((questionCount * 20) / 60));
+  const shareCopy = `We'd love your input — ${title} takes about ${estMinutes} minute${estMinutes === 1 ? "" : "s"}: ${url}`;
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
       <h2 className="font-display text-2xl font-semibold tracking-tight">Share</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {status === "live"
-          ? "Your survey is live. Anyone with the link can respond."
+          ? "Your form is live. It matches your workspace brand and is optimized to capture product feedback from your selected audience."
           : "Publish your survey to start collecting responses."}
       </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-2.5 py-1 text-muted-foreground">
+          <span className="h-1.5 w-1.5 rounded-full bg-signal" />
+          {hasOverrides
+            ? "Using form-specific branding (overrides applied)"
+            : `Using ${brandName} workspace brand`}
+        </span>
+        <span className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-muted-foreground">
+          ~{estMinutes} min to complete · {questionCount} questions
+        </span>
+      </div>
 
       <div className="mt-6 flex items-center gap-2 rounded-2xl border border-border bg-card p-3">
         <input
@@ -891,6 +948,49 @@ function ShareTab({
         >
           <ExternalLink className="h-3.5 w-3.5" /> Open
         </a>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Embed
+          </h3>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(embedCode);
+              toast.success("Embed code copied");
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11px] hover:bg-secondary"
+          >
+            <Copy className="h-3 w-3" /> Copy
+          </button>
+        </div>
+        <pre className="mt-2 overflow-x-auto rounded-lg bg-background/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
+          {embedCode}
+        </pre>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          The embed uses the same resolved branding as the public form.
+        </p>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Suggested share message
+          </h3>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(shareCopy);
+              toast.success("Share copy copied");
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11px] hover:bg-secondary"
+          >
+            <Copy className="h-3 w-3" /> Copy
+          </button>
+        </div>
+        <p className="mt-2 rounded-lg bg-background/60 p-3 text-sm text-foreground/90">
+          {shareCopy}
+        </p>
       </div>
 
       <div className="mt-10 rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-5">
@@ -931,8 +1031,7 @@ function InsightsTab({ surveyId }: { surveyId: string }) {
   );
   const mostDroppedQuestion = data.questions.find((q) => q.id === mostDropped?.question_id);
   const vf = data.versionFilter;
-  const selectedIsHistorical =
-    typeof vf.selected === "number" && vf.selected !== vf.currentVersion;
+  const selectedIsHistorical = typeof vf.selected === "number" && vf.selected !== vf.currentVersion;
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -954,9 +1053,7 @@ function InsightsTab({ surveyId }: { surveyId: string }) {
               value={String(version)}
               onChange={(e) => {
                 const v = e.target.value;
-                setVersion(
-                  v === "all" || v === "latest" ? (v as "all" | "latest") : Number(v),
-                );
+                setVersion(v === "all" || v === "latest" ? (v as "all" | "latest") : Number(v));
               }}
               className="bg-transparent text-foreground outline-none"
             >
@@ -979,6 +1076,55 @@ function InsightsTab({ surveyId }: { surveyId: string }) {
         <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] px-4 py-2 text-xs text-amber-200">
           Viewing a historical snapshot (v{vf.selected}). Questions shown match this version, so
           older responses stay accurate even if the live survey has changed.
+        </div>
+      )}
+
+      {(data.productSignals?.length ?? 0) > 0 && data.stats.total > 0 && (
+        <div className="mt-6 rounded-2xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-medium">Product signals</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Responses grouped by product area and insight kind — strongest signals first. Strong
+                50+, medium 15–49, weak under 15 answers.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {data.productSignals.slice(0, 6).map((sig) => (
+              <div key={sig.key} className="rounded-xl border border-border bg-background/35 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-medium capitalize">
+                    {sig.product_area.replaceAll("_", " ")}
+                    <span className="ml-1.5 text-muted-foreground">
+                      · {sig.insight_kind.replaceAll("_", " ")}
+                    </span>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                      sig.strength === "strong"
+                        ? "bg-emerald-400/15 text-emerald-300"
+                        : sig.strength === "medium"
+                          ? "bg-amber-400/15 text-amber-200"
+                          : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {sig.strength}
+                  </span>
+                </div>
+                <div className="mt-1.5 font-mono text-xs text-muted-foreground">
+                  {sig.answerCount} answers · {sig.questions.length} question
+                  {sig.questions.length === 1 ? "" : "s"}
+                  {sig.avgScore !== null ? ` · avg ${sig.avgScore.toFixed(1)}` : ""}
+                </div>
+                {sig.quotes.length > 0 && (
+                  <blockquote className="mt-2 line-clamp-2 border-l-2 border-signal/50 pl-2 text-xs italic text-foreground/80">
+                    “{sig.quotes[0]}”
+                  </blockquote>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

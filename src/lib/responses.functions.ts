@@ -2,6 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
+import {
+  DEFAULT_WORKSPACE_BRAND_PROFILE,
+  resolveWorkspaceBrand,
+  themeFromBrand,
+  type WorkspaceBrandFormPatch,
+  type WorkspaceBrandProfile,
+} from "./brand.functions";
 
 function publicClient() {
   return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
@@ -51,17 +58,50 @@ export const getPublicSurvey = createServerFn({ method: "GET" })
     const supabase = publicClient();
     const { data: survey, error } = await supabase
       .from("surveys")
-      .select("id, slug, title, description, status, welcome_screen, thank_you_screen, theme")
+      .select(
+        "id, slug, title, description, status, welcome_screen, thank_you_screen, theme, brand_overrides",
+      )
       .eq("slug", data.slug)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    if (!survey || survey.status !== "live") return { survey: null, questions: [] };
+    if (!survey || survey.status !== "live") {
+      return { survey: null, questions: [], resolved_brand: null };
+    }
     const { data: questions } = await supabase
       .from("questions")
       .select("id, type, title, description, required, config, position")
       .eq("survey_id", survey.id)
       .order("position", { ascending: true });
-    return { survey, questions: questions ?? [] };
+
+    // Resolve workspace brand + form overrides server-side (the brand table
+    // is not anon-readable), so the public form matches the editor preview.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ownerRow } = await supabaseAdmin
+      .from("surveys")
+      .select("owner_id")
+      .eq("id", survey.id)
+      .maybeSingle();
+    let workspaceBrand: WorkspaceBrandProfile | null = null;
+    if (ownerRow?.owner_id) {
+      const { data: brand } = await supabaseAdmin
+        .from("workspace_brand_profiles")
+        .select("*")
+        .eq("workspace_id", ownerRow.owner_id)
+        .maybeSingle();
+      workspaceBrand = (brand as WorkspaceBrandProfile | null) ?? null;
+    }
+    const overrides = (survey.brand_overrides as WorkspaceBrandFormPatch | null) ?? {};
+    const resolved = resolveWorkspaceBrand(
+      workspaceBrand ?? DEFAULT_WORKSPACE_BRAND_PROFILE,
+      overrides,
+    );
+    const brandTheme = themeFromBrand(resolved);
+    const formTheme = (survey.theme as Record<string, unknown> | null) ?? {};
+    const resolved_brand = {
+      ...resolved,
+      theme: { ...brandTheme, ...formTheme },
+    };
+    return { survey, questions: questions ?? [], resolved_brand };
   });
 
 export const startResponse = createServerFn({ method: "POST" })

@@ -63,10 +63,10 @@ export const getSurveyInsights = createServerFn({ method: "GET" })
     }
     if (!questions) {
       const { data: liveQs } = await context.supabase
-      .from("questions")
-      .select("id, title, type, position, config")
-      .eq("survey_id", data.survey_id)
-      .order("position", { ascending: true });
+        .from("questions")
+        .select("id, title, type, position, config, insight_kind, product_area, priority_signal")
+        .eq("survey_id", data.survey_id)
+        .order("position", { ascending: true });
       questions = liveQs ?? [];
     }
     let responsesQuery = context.supabase
@@ -156,6 +156,68 @@ export const getSurveyInsights = createServerFn({ method: "GET" })
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
+
+    // Product signals — group answers by question insight metadata so the
+    // dashboard can prioritize the strongest product signals first.
+    // Signal strength: strong 50+, medium 15-49, weak <15 answers.
+    type SignalGroup = {
+      key: string;
+      product_area: string;
+      insight_kind: string;
+      answerCount: number;
+      strength: "strong" | "medium" | "weak";
+      questions: { question_id: string; title: string; priority_signal: string | null }[];
+      quotes: string[];
+      avgScore: number | null;
+    };
+    const signalStrength = (n: number): SignalGroup["strength"] =>
+      n >= 50 ? "strong" : n >= 15 ? "medium" : "weak";
+    const groups = new Map<string, SignalGroup>();
+    for (const q of questions ?? []) {
+      const meta = q as unknown as {
+        id: string;
+        title: string;
+        type: string;
+        insight_kind?: string | null;
+        product_area?: string | null;
+        priority_signal?: string | null;
+      };
+      const area = meta.product_area ?? "general";
+      const kind = meta.insight_kind ?? "signal";
+      const key = `${area}::${kind}`;
+      const qAnswers = answers.filter((a) => a.question_id === meta.id);
+      const group = groups.get(key) ?? {
+        key,
+        product_area: area,
+        insight_kind: kind,
+        answerCount: 0,
+        strength: "weak" as const,
+        questions: [],
+        quotes: [],
+        avgScore: null,
+      };
+      group.answerCount += qAnswers.length;
+      group.questions.push({
+        question_id: meta.id,
+        title: meta.title,
+        priority_signal: meta.priority_signal ?? null,
+      });
+      const texts = qAnswers
+        .map((a) => a.value_text)
+        .filter((t): t is string => !!t && t.trim().length > 12)
+        .slice(0, 3);
+      group.quotes.push(...texts.slice(0, Math.max(0, 5 - group.quotes.length)));
+      const nums = qAnswers.map((a) => a.value_number).filter((n): n is number => n !== null);
+      if (nums.length) {
+        const avg = nums.reduce((s, v) => s + v, 0) / nums.length;
+        group.avgScore = group.avgScore === null ? avg : (group.avgScore + avg) / 2;
+      }
+      groups.set(key, group);
+    }
+    const productSignals = Array.from(groups.values())
+      .map((g) => ({ ...g, strength: signalStrength(g.answerCount) }))
+      .sort((a, b) => b.answerCount - a.answerCount);
+
     return {
       survey,
       questions: questions ?? [],
@@ -163,6 +225,7 @@ export const getSurveyInsights = createServerFn({ method: "GET" })
       answers,
       questionStats,
       referrers,
+      productSignals,
       stats: {
         total,
         completed,

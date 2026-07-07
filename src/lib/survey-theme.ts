@@ -6,6 +6,20 @@ export type SurveyTheme = {
   background?: "solid" | "gradient" | "dots";
   font?: "sans" | "serif" | "mono" | "soft";
   radius?: "sharp" | "soft" | "pill";
+  // Brand-aware fields (resolved from workspace brand profile + form overrides).
+  brand_name?: string;
+  product_description?: string;
+  logo_url?: string | null;
+  primary_color?: string;
+  background_color?: string;
+  text_color?: string;
+  accent_color?: string;
+  font_style?: string;
+  button_style?: string;
+  form_layout?: string;
+  tone?: string;
+  default_thank_you_message?: string;
+  hide_logo?: boolean;
 };
 
 export type ThemePreset = {
@@ -82,6 +96,38 @@ const FONT_STACKS: Record<NonNullable<SurveyTheme["font"]>, string> = {
   soft: `"DM Sans", ui-sans-serif, system-ui, sans-serif`,
 };
 
+// Brand profile vocabulary → theme values.
+const FONT_STYLE_TO_FONT: Record<string, NonNullable<SurveyTheme["font"]>> = {
+  modern: "sans",
+  clean: "sans",
+  editorial: "serif",
+  serif: "serif",
+  technical: "mono",
+  mono: "mono",
+  friendly: "soft",
+  soft: "soft",
+};
+
+const BUTTON_STYLE_TO_RADIUS: Record<string, NonNullable<SurveyTheme["radius"]>> = {
+  rounded: "soft",
+  pill: "pill",
+  square: "sharp",
+  sharp: "sharp",
+  soft: "soft",
+};
+
+export function fontFromBrandStyle(style: string | undefined): SurveyTheme["font"] | undefined {
+  if (!style) return undefined;
+  return FONT_STYLE_TO_FONT[style.toLowerCase()];
+}
+
+export function radiusFromButtonStyle(
+  style: string | undefined,
+): SurveyTheme["radius"] | undefined {
+  if (!style) return undefined;
+  return BUTTON_STYLE_TO_RADIUS[style.toLowerCase()];
+}
+
 const RADIUS_VALUES: Record<NonNullable<SurveyTheme["radius"]>, string> = {
   sharp: "0.125rem",
   soft: "0.75rem",
@@ -115,10 +161,17 @@ export function resolvePreset(theme: SurveyTheme | null | undefined): ThemePrese
 export function themeStyle(theme: SurveyTheme | null | undefined): CSSProperties {
   const t = { ...DEFAULT_THEME, ...(theme ?? {}) };
   const preset = resolvePreset(t);
-  const accent = t.accent ?? preset.accent;
-  const accentForeground = t.accent ? readableForeground(t.accent) : preset.accentForeground;
-  const font = FONT_STACKS[t.font ?? "sans"];
-  const radius = RADIUS_VALUES[t.radius ?? "soft"];
+  const accent = t.accent ?? t.accent_color ?? t.primary_color ?? preset.accent;
+  const accentForeground =
+    t.accent || t.accent_color || t.primary_color
+      ? readableForeground(accent)
+      : preset.accentForeground;
+  // Explicit form font/radius wins; otherwise fall back to the brand
+  // profile's font_style/button_style; otherwise Insightform defaults.
+  const fontKey = theme?.font ?? fontFromBrandStyle(t.font_style) ?? "sans";
+  const radiusKey = theme?.radius ?? radiusFromButtonStyle(t.button_style) ?? "soft";
+  const font = FONT_STACKS[fontKey];
+  const radius = RADIUS_VALUES[radiusKey];
   const style = {
     // Override design tokens scoped to the themed subtree.
     "--signal": accent,
@@ -130,6 +183,14 @@ export function themeStyle(theme: SurveyTheme | null | undefined): CSSProperties
     "--t-surface": preset.surface,
     fontFamily: font,
   } as CSSProperties & Record<string, string>;
+  if (theme?.background_color) {
+    style["--background"] = theme.background_color;
+    style.backgroundColor = theme.background_color;
+  }
+  if (theme?.text_color) {
+    style["--foreground"] = theme.text_color;
+    style.color = theme.text_color;
+  }
   return style;
 }
 
@@ -161,7 +222,10 @@ export const THEME_RADII: Array<{ id: NonNullable<SurveyTheme["radius"]>; label:
   { id: "pill", label: "Pill" },
 ];
 
-export const THEME_BACKGROUNDS: Array<{ id: NonNullable<SurveyTheme["background"]>; label: string }> = [
+export const THEME_BACKGROUNDS: Array<{
+  id: NonNullable<SurveyTheme["background"]>;
+  label: string;
+}> = [
   { id: "solid", label: "Solid" },
   { id: "gradient", label: "Gradient" },
   { id: "dots", label: "Dots" },

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import { BrandProfileCard } from "@/components/BrandProfileCard";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — Insightform" }] }),
@@ -18,6 +19,9 @@ function SettingsPage() {
       <div className="mx-auto max-w-3xl px-6 py-10">
         <h1 className="font-display text-3xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Your workspace.</p>
+
+        <BrandProfileCard />
+
         <div className="mt-8 rounded-2xl border border-border bg-card p-6">
           <h2 className="text-sm font-medium">Account</h2>
           <dl className="mt-4 grid grid-cols-1 gap-3 text-sm">

@@ -47,9 +47,7 @@ export type SurveyDiff = {
 // ---------- Helpers ----------
 
 async function loadSurveyWithQuestions(
-  supabase: ReturnType<
-    typeof import("@supabase/supabase-js").createClient
-  > extends unknown
+  supabase: ReturnType<typeof import("@supabase/supabase-js").createClient> extends unknown
     ? never
     : never,
 ) {
@@ -73,9 +71,7 @@ function questionsEqualShape(
 
 export const createEditDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { survey_id: string }) =>
-    z.object({ survey_id: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { survey_id: string }) => z.object({ survey_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
@@ -109,6 +105,7 @@ export const createEditDraft = createServerFn({ method: "POST" })
         description: live.description,
         status: "draft",
         theme: live.theme,
+        brand_overrides: live.brand_overrides,
         welcome_screen: live.welcome_screen,
         thank_you_screen: live.thank_you_screen,
         parent_survey_id: live.id,
@@ -122,7 +119,9 @@ export const createEditDraft = createServerFn({ method: "POST" })
     // Clone questions.
     const { data: liveQs } = await supabase
       .from("questions")
-      .select("id, position, type, title, description, required, config")
+      .select(
+        "id, position, type, title, description, required, config, insight_kind, product_area, priority_signal",
+      )
       .eq("survey_id", live.id)
       .order("position", { ascending: true });
     if (liveQs && liveQs.length) {
@@ -134,6 +133,9 @@ export const createEditDraft = createServerFn({ method: "POST" })
         description: q.description,
         required: q.required,
         config: q.config,
+        insight_kind: q.insight_kind,
+        product_area: q.product_area,
+        priority_signal: q.priority_signal,
         origin_question_id: q.id,
       }));
       const { data: insertedQs, error: qErr } = await supabase
@@ -169,9 +171,7 @@ export const createEditDraft = createServerFn({ method: "POST" })
 
 export const discardEditDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { draft_id: string }) =>
-    z.object({ draft_id: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { draft_id: string }) => z.object({ draft_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: draft } = await supabase
@@ -189,9 +189,7 @@ export const discardEditDraft = createServerFn({ method: "POST" })
 
 export const diffSurvey = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { draft_id: string }) =>
-    z.object({ draft_id: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { draft_id: string }) => z.object({ draft_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }): Promise<SurveyDiff> => {
     const { supabase, userId } = context;
     const { data: draft } = await supabase
@@ -338,9 +336,7 @@ export const diffSurvey = createServerFn({ method: "GET" })
 
 export const publishEditDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { draft_id: string }) =>
-    z.object({ draft_id: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { draft_id: string }) => z.object({ draft_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: draft } = await supabase
@@ -367,7 +363,10 @@ export const publishEditDraft = createServerFn({ method: "POST" })
     const { data: currentTagLinks } = await supabase
       .from("question_tags")
       .select("question_id, tag_id, tags(name)")
-      .in("question_id", (currentLiveQs ?? []).map((q) => q.id));
+      .in(
+        "question_id",
+        (currentLiveQs ?? []).map((q) => q.id),
+      );
     const tagsByQ = new Map<string, string[]>();
     for (const row of currentTagLinks ?? []) {
       const arr = tagsByQ.get(row.question_id) ?? [];
@@ -405,6 +404,7 @@ export const publishEditDraft = createServerFn({ method: "POST" })
         title: draft.title,
         description: draft.description,
         theme: draft.theme,
+        brand_overrides: draft.brand_overrides,
         welcome_screen: draft.welcome_screen,
         thank_you_screen: draft.thank_you_screen,
         version: live.version + 1,
@@ -417,13 +417,18 @@ export const publishEditDraft = createServerFn({ method: "POST" })
     // 1. Load draft questions + their tag links.
     const { data: draftQs } = await supabase
       .from("questions")
-      .select("id, position, type, title, description, required, config")
+      .select(
+        "id, position, type, title, description, required, config, insight_kind, product_area, priority_signal",
+      )
       .eq("survey_id", draft.id)
       .order("position", { ascending: true });
     const { data: draftTagLinks } = await supabase
       .from("question_tags")
       .select("question_id, tag_id")
-      .in("question_id", (draftQs ?? []).map((q) => q.id));
+      .in(
+        "question_id",
+        (draftQs ?? []).map((q) => q.id),
+      );
 
     // 2. Delete existing live questions (this cascades question_tags for them).
     const liveQIds = (currentLiveQs ?? []).map((q) => q.id);
@@ -442,6 +447,9 @@ export const publishEditDraft = createServerFn({ method: "POST" })
         description: q.description,
         required: q.required,
         config: q.config,
+        insight_kind: q.insight_kind,
+        product_area: q.product_area,
+        priority_signal: q.priority_signal,
       }));
       const { data: inserted } = await supabase
         .from("questions")
@@ -477,9 +485,7 @@ export const publishEditDraft = createServerFn({ method: "POST" })
 
 export const listSurveyVersions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { survey_id: string }) =>
-    z.object({ survey_id: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: { survey_id: string }) => z.object({ survey_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("survey_versions")

@@ -7,16 +7,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { getSurvey, updateSurvey } from "@/lib/surveys.functions";
 import { listSurveyChat } from "@/lib/survey-chat.functions";
+import {
+  getWorkspaceBrandProfile,
+  resolveWorkspaceBrand,
+  themeFromBrand,
+} from "@/lib/brand.functions";
 import { QuestionPreview } from "@/components/QuestionPreview";
 import type { QuestionType } from "@/lib/question-types";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemePanel } from "@/components/ThemePanel";
-import {
-  themeStyle,
-  backgroundClass,
-  DEFAULT_THEME,
-  type SurveyTheme,
-} from "@/lib/survey-theme";
+import { themeStyle, backgroundClass, DEFAULT_THEME, type SurveyTheme } from "@/lib/survey-theme";
 import {
   Conversation,
   ConversationContent,
@@ -66,10 +66,19 @@ export const Route = createFileRoute("/_authenticated/surveys/$id")({
 });
 
 const STARTERS = [
-  { title: "Post-purchase NPS", body: "Measure satisfaction right after checkout, with follow-ups on pricing & onboarding." },
-  { title: "Dashboard redesign pulse", body: "Gauge clarity, speed, and usefulness of the new dashboard." },
+  {
+    title: "Post-purchase NPS",
+    body: "Measure satisfaction right after checkout, with follow-ups on pricing & onboarding.",
+  },
+  {
+    title: "Dashboard redesign pulse",
+    body: "Gauge clarity, speed, and usefulness of the new dashboard.",
+  },
   { title: "Win/loss interview", body: "Why prospects didn't convert in the last 30 days." },
-  { title: "Feature prioritization", body: "Five questions for our top 50 customers about what to ship next." },
+  {
+    title: "Feature prioritization",
+    body: "Five questions for our top 50 customers about what to ship next.",
+  },
 ];
 
 type ToolPart = {
@@ -88,6 +97,7 @@ function SurveyComposer() {
   const navigate = useNavigate();
   const fetchSurvey = useServerFn(getSurvey);
   const fetchChat = useServerFn(listSurveyChat);
+  const fetchBrand = useServerFn(getWorkspaceBrandProfile);
   const updateSurveyFn = useServerFn(updateSurvey);
 
   const surveyQ = useQuery({
@@ -109,6 +119,10 @@ function SurveyComposer() {
   const chatQ = useQuery({
     queryKey: ["survey-chat", id],
     queryFn: () => fetchChat({ data: { survey_id: id } }),
+  });
+  const brandQ = useQuery({
+    queryKey: ["workspace-brand"],
+    queryFn: () => fetchBrand(),
   });
 
   const initialMessages = useMemo<UIMessage[]>(() => {
@@ -206,17 +220,33 @@ function SurveyComposer() {
   async function publish() {
     await updateSurveyFn({ data: { id, status: "live" } });
     qc.invalidateQueries({ queryKey: ["survey", id] });
-    toast.success("Survey is live");
+    const hasOverrides = Boolean(
+      survey?.brand_overrides &&
+      Object.keys(survey.brand_overrides as Record<string, unknown>).length > 0,
+    );
+    toast.success(
+      hasOverrides
+        ? "Your form is live — using this form's custom branding."
+        : `Your form is live — it matches your ${resolvedBrand.brand_name ?? "workspace"} brand and is optimized to capture product feedback.`,
+    );
   }
 
   const survey = surveyQ.data?.survey;
   const questions = surveyQ.data?.questions ?? [];
 
   // Theme state, debounced save.
-  const remoteTheme = useMemo<SurveyTheme>(
-    () => ({ ...DEFAULT_THEME, ...((survey?.theme as SurveyTheme | null) ?? {}) }),
-    [survey?.theme],
-  );
+  // Inheritance: Insightform defaults → workspace brand profile → this form's
+  // saved design (survey.theme) → this form's brand overrides.
+  const resolvedBrand = useMemo(() => {
+    const workspaceBrand = brandQ.data ?? null;
+    const overrides = (survey?.brand_overrides as Record<string, unknown> | null) ?? {};
+    return resolveWorkspaceBrand(workspaceBrand, overrides as never);
+  }, [brandQ.data, survey?.brand_overrides]);
+  const remoteTheme = useMemo<SurveyTheme>(() => {
+    const brandTheme = themeFromBrand(resolvedBrand);
+    const formTheme = (survey?.theme as SurveyTheme | null) ?? {};
+    return { ...DEFAULT_THEME, ...brandTheme, ...formTheme };
+  }, [resolvedBrand, survey?.theme]);
   const [theme, setTheme] = useState<SurveyTheme>(remoteTheme);
   useEffect(() => {
     setTheme(remoteTheme);
@@ -226,7 +256,13 @@ function SurveyComposer() {
     setTheme(next);
     if (themeSaveRef.current) clearTimeout(themeSaveRef.current);
     themeSaveRef.current = setTimeout(() => {
-      updateSurveyFn({ data: { id, theme: next as Record<string, unknown> } })
+      const designPatch: Record<string, unknown> = {};
+      if (next.preset !== undefined) designPatch.preset = next.preset;
+      if (next.accent !== undefined) designPatch.accent = next.accent;
+      if (next.background !== undefined) designPatch.background = next.background;
+      if (next.font !== undefined) designPatch.font = next.font;
+      if (next.radius !== undefined) designPatch.radius = next.radius;
+      updateSurveyFn({ data: { id, theme: designPatch } })
         .then(() => qc.invalidateQueries({ queryKey: ["survey", id] }))
         .catch((e: Error) => toast.error(e.message));
     }, 400);
@@ -245,9 +281,7 @@ function SurveyComposer() {
   const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
   const lastMsg = messages[messages.length - 1];
   const readyWithReply =
-    status === "ready" &&
-    messages.length >= 2 &&
-    lastMsg?.role === "assistant";
+    status === "ready" && messages.length >= 2 && lastMsg?.role === "assistant";
 
   function scrollToDesign() {
     if (typeof window === "undefined") return;
@@ -329,7 +363,11 @@ function SurveyComposer() {
               className="group relative"
               title="Back to surveys"
             >
-              <img src={agentMark} alt="" className="h-7 w-7 rounded-md ring-1 ring-border transition-opacity group-hover:opacity-80" />
+              <img
+                src={agentMark}
+                alt=""
+                className="h-7 w-7 rounded-md ring-1 ring-border transition-opacity group-hover:opacity-80"
+              />
             </button>
             <div className="flex min-w-0 items-center gap-2">
               {editingTitle ? (
@@ -361,8 +399,8 @@ function SurveyComposer() {
                     survey?.status === "live"
                       ? "bg-emerald-400"
                       : survey?.status === "closed"
-                      ? "bg-rose-400"
-                      : "bg-muted-foreground"
+                        ? "bg-rose-400"
+                        : "bg-muted-foreground"
                   }`}
                 />
                 {survey?.status ?? "draft"}
@@ -503,7 +541,8 @@ function SurveyComposer() {
                     />
                     <PromptInputFooter className="justify-between">
                       <span className="px-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                        <kbd className="rounded border border-border px-1 py-0.5">⏎</kbd> send · <kbd className="rounded border border-border px-1 py-0.5">⇧⏎</kbd> newline
+                        <kbd className="rounded border border-border px-1 py-0.5">⏎</kbd> send ·{" "}
+                        <kbd className="rounded border border-border px-1 py-0.5">⇧⏎</kbd> newline
                       </span>
                       <PromptInputSubmit
                         status={status}
@@ -525,6 +564,18 @@ function SurveyComposer() {
             welcome={(survey?.welcome_screen ?? null) as WelcomeShape | null}
             thanks={(survey?.thank_you_screen ?? null) as ThanksShape | null}
             description={survey?.description ?? null}
+            brand={{
+              name: resolvedBrand.brand_name ?? "Insightform",
+              logoUrl: resolvedBrand.logo_url ?? null,
+              hideLogo: Boolean(
+                (survey?.brand_overrides as { hide_logo?: boolean } | null)?.hide_logo,
+              ),
+              thankYouFallback: resolvedBrand.default_thank_you_message ?? null,
+              hasOverrides: Boolean(
+                survey?.brand_overrides &&
+                Object.keys(survey.brand_overrides as Record<string, unknown>).length > 0,
+              ),
+            }}
             questions={questions.map((q) => ({
               id: q.id,
               type: q.type as QuestionType,
@@ -561,9 +612,7 @@ function ChatMessage({ message, showAvatar }: { message: UIMessage; showAvatar: 
     <Message from="assistant">
       <div className="flex w-full items-start gap-3">
         <div className="w-7 shrink-0">
-          {showAvatar && (
-            <img src={agentMark} alt="" className="mt-0.5 h-7 w-7 rounded-md" />
-          )}
+          {showAvatar && <img src={agentMark} alt="" className="mt-0.5 h-7 w-7 rounded-md" />}
         </div>
         <MessageContent className="min-w-0 flex-1 bg-transparent p-0 text-foreground">
           <div className="space-y-2.5">
@@ -625,7 +674,8 @@ function EmptyChat({ onPick }: { onPick: (text: string) => void }) {
         What should we learn?
       </h2>
       <p className="mt-2 max-w-sm text-sm text-muted-foreground text-pretty">
-        Describe the survey. The agent drafts Typeform-style questions and tags themes so insights roll up across every survey.
+        Describe the survey. The agent drafts Typeform-style questions and tags themes so insights
+        roll up across every survey.
       </p>
       <div className="mt-8 grid w-full grid-cols-1 gap-2.5 text-left sm:grid-cols-2">
         {STARTERS.map((s) => (
@@ -678,6 +728,7 @@ function PreviewPane({
   welcome,
   thanks,
   description,
+  brand,
 }: {
   title: string;
   slug: string | null;
@@ -687,6 +738,13 @@ function PreviewPane({
   welcome: WelcomeShape | null;
   thanks: ThanksShape | null;
   description: string | null;
+  brand: {
+    name: string;
+    logoUrl: string | null;
+    hideLogo: boolean;
+    thankYouFallback: string | null;
+    hasOverrides: boolean;
+  };
 }) {
   const [idx, setIdx] = useState(0);
   const [value, setValue] = useState<unknown>(null);
@@ -728,20 +786,28 @@ function PreviewPane({
           <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Design check
           </span>
-          {[
-            "Contrast looks good",
-            "Buttons are readable",
-            "Mobile spacing is balanced",
-          ].map((c) => (
-            <span key={c} className="inline-flex items-center gap-1 text-[11px] text-foreground/85">
-              <Check className="h-3 w-3 text-emerald-400" />
-              {c}
-            </span>
-          ))}
+          {["Contrast looks good", "Buttons are readable", "Mobile spacing is balanced"].map(
+            (c) => (
+              <span
+                key={c}
+                className="inline-flex items-center gap-1 text-[11px] text-foreground/85"
+              >
+                <Check className="h-3 w-3 text-emerald-400" />
+                {c}
+              </span>
+            ),
+          )}
+          <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+            {brand.hasOverrides ? "Custom branding (this form)" : "Workspace brand"}
+          </span>
         </div>
 
         {/* Preview tabs */}
-        <div role="tablist" aria-label="Preview screen" className="inline-flex w-fit rounded-lg border border-border bg-card/50 p-0.5">
+        <div
+          role="tablist"
+          aria-label="Preview screen"
+          className="inline-flex w-fit rounded-lg border border-border bg-card/50 p-0.5"
+        >
           {(
             [
               { id: "question", label: "Question" },
@@ -777,11 +843,12 @@ function PreviewPane({
               title={slug ? "Copy public link" : "Publish to get a public link"}
             >
               <span className="truncate">{publicUrl}</span>
-              {slug && (copied ? (
-                <Check className="h-3 w-3 text-emerald-400" />
-              ) : (
-                <Copy className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
-              ))}
+              {slug &&
+                (copied ? (
+                  <Check className="h-3 w-3 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                ))}
             </button>
             {slug && (
               <a
@@ -802,7 +869,17 @@ function PreviewPane({
           >
             {tab === "welcome" ? (
               <div className="mx-auto flex h-full max-w-xl flex-col justify-center px-8 py-12">
-                <div className="text-[10px] uppercase tracking-[0.18em]" style={{ color: "var(--t-accent)" }}>
+                {!brand.hideLogo && brand.logoUrl ? (
+                  <img
+                    src={brand.logoUrl}
+                    alt={brand.name}
+                    className="mb-4 h-8 w-8 rounded-md object-contain"
+                  />
+                ) : null}
+                <div
+                  className="text-[10px] uppercase tracking-[0.18em]"
+                  style={{ color: "var(--t-accent)" }}
+                >
                   {title || "Untitled survey"}
                 </div>
                 <h1 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight text-balance">
@@ -822,7 +899,11 @@ function PreviewPane({
               <div className="mx-auto flex h-full max-w-xl flex-col items-center justify-center px-8 py-12 text-center">
                 <div
                   className="grid h-12 w-12 place-items-center rounded-full ring-1"
-                  style={{ background: "color-mix(in oklab, var(--t-accent) 15%, transparent)", color: "var(--t-accent)", borderColor: "var(--t-accent)" }}
+                  style={{
+                    background: "color-mix(in oklab, var(--t-accent) 15%, transparent)",
+                    color: "var(--t-accent)",
+                    borderColor: "var(--t-accent)",
+                  }}
                 >
                   <Check className="h-6 w-6" />
                 </div>
@@ -830,21 +911,34 @@ function PreviewPane({
                   {thanks?.title ?? "Thank you."}
                 </h1>
                 <p className="mt-3 max-w-md text-sm text-muted-foreground">
-                  {thanks?.description ?? "Your response was recorded. It now feeds the team's source of truth."}
+                  {thanks?.description ??
+                    brand.thankYouFallback ??
+                    "Your response was recorded. It now feeds the team's source of truth."}
                 </p>
               </div>
             ) : questions.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center px-6 text-center">
                 <img src={agentMark} alt="" className="h-10 w-10 rounded-xl opacity-90" />
-                <h3 className="mt-4 font-display text-lg font-semibold">Your survey will appear here</h3>
+                <h3 className="mt-4 font-display text-lg font-semibold">
+                  Your survey will appear here
+                </h3>
                 <p className="mt-1 max-w-xs text-sm text-muted-foreground">
                   As the agent builds it, questions render live in this preview.
                 </p>
               </div>
             ) : (
               <div className="mx-auto flex h-full max-w-xl flex-col px-8 py-10">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                  {title || "Untitled survey"}
+                <div className="flex items-center gap-2">
+                  {!brand.hideLogo && brand.logoUrl ? (
+                    <img
+                      src={brand.logoUrl}
+                      alt={brand.name}
+                      className="h-5 w-5 rounded object-contain"
+                    />
+                  ) : null}
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    {title || "Untitled survey"}
+                  </div>
                 </div>
                 <div className="mt-6 flex-1">
                   {q && (

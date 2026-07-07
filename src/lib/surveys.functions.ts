@@ -60,7 +60,9 @@ export const listRecentSurveys = createServerFn({ method: "GET" })
 export const createSurvey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { title: string; description?: string }) =>
-    z.object({ title: z.string().min(1).max(120), description: z.string().max(500).optional() }).parse(d),
+    z
+      .object({ title: z.string().min(1).max(120), description: z.string().max(500).optional() })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: inserted, error } = await context.supabase
@@ -97,44 +99,57 @@ export const getSurvey = createServerFn({ method: "GET" })
 
 export const updateSurvey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: {
-    id: string;
-    title?: string;
-    description?: string | null;
-    status?: "draft" | "live" | "closed";
-    welcome_screen?: { title: string; description: string; button: string };
-    thank_you_screen?: { title: string; description: string };
-    theme?: Record<string, unknown>;
-  }) =>
-    z
-      .object({
-        id: z.string().uuid(),
-        title: z.string().min(1).max(120).optional(),
-        description: z.string().max(500).nullable().optional(),
-        status: z.enum(["draft", "live", "closed"]).optional(),
-        welcome_screen: z
-          .object({ title: z.string().max(120), description: z.string().max(500), button: z.string().max(40) })
-          .optional(),
-        thank_you_screen: z
-          .object({ title: z.string().max(120), description: z.string().max(500) })
-          .optional(),
-        theme: z
-          .object({
-            preset: z.string().max(40).optional(),
-            accent: z.string().regex(/^#?[0-9a-fA-F]{6}$/).optional(),
-            background: z.enum(["solid", "gradient", "dots"]).optional(),
-            font: z.enum(["sans", "serif", "mono", "soft"]).optional(),
-            radius: z.enum(["sharp", "soft", "pill"]).optional(),
-          })
-          .optional(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: {
+      id: string;
+      title?: string;
+      description?: string | null;
+      status?: "draft" | "live" | "closed";
+      welcome_screen?: { title: string; description: string; button: string };
+      thank_you_screen?: { title: string; description: string };
+      theme?: Record<string, unknown>;
+      brand_overrides?: Record<string, unknown>;
+    }) =>
+      z
+        .object({
+          id: z.string().uuid(),
+          title: z.string().min(1).max(120).optional(),
+          description: z.string().max(500).nullable().optional(),
+          status: z.enum(["draft", "live", "closed"]).optional(),
+          welcome_screen: z
+            .object({
+              title: z.string().max(120),
+              description: z.string().max(500),
+              button: z.string().max(40),
+            })
+            .optional(),
+          thank_you_screen: z
+            .object({ title: z.string().max(120), description: z.string().max(500) })
+            .optional(),
+          theme: z
+            .object({
+              preset: z.string().max(40).optional(),
+              accent: z
+                .string()
+                .regex(/^#?[0-9a-fA-F]{6}$/)
+                .optional(),
+              background: z.enum(["solid", "gradient", "dots"]).optional(),
+              font: z.enum(["sans", "serif", "mono", "soft"]).optional(),
+              radius: z.enum(["sharp", "soft", "pill"]).optional(),
+            })
+            .optional(),
+          brand_overrides: z.record(z.string(), z.unknown()).optional(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { id, ...patch } = data;
+    const { id, brand_overrides, ...patch } = data;
+    const fullPatch: Record<string, unknown> = { ...patch };
+    if (brand_overrides !== undefined) fullPatch.brand_overrides = brand_overrides;
     const { data: updated, error } = await context.supabase
       .from("surveys")
-      .update(patch)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update(fullPatch as any)
       .eq("id", id)
       .select()
       .single();
