@@ -149,8 +149,11 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          insight_kind: string | null
           origin_question_id: string | null
           position: number
+          priority_signal: string | null
+          product_area: string | null
           required: boolean
           survey_id: string
           title: string
@@ -162,8 +165,11 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          insight_kind?: string | null
           origin_question_id?: string | null
           position?: number
+          priority_signal?: string | null
+          product_area?: string | null
           required?: boolean
           survey_id: string
           title?: string
@@ -175,8 +181,11 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          insight_kind?: string | null
           origin_question_id?: string | null
           position?: number
+          priority_signal?: string | null
+          product_area?: string | null
           required?: boolean
           survey_id?: string
           title?: string
@@ -321,6 +330,7 @@ export type Database = {
       }
       surveys: {
         Row: {
+          brand_overrides: Json
           created_at: string
           description: string | null
           id: string
@@ -338,6 +348,7 @@ export type Database = {
           welcome_screen: Json
         }
         Insert: {
+          brand_overrides?: Json
           created_at?: string
           description?: string | null
           id?: string
@@ -355,6 +366,7 @@ export type Database = {
           welcome_screen?: Json
         }
         Update: {
+          brand_overrides?: Json
           created_at?: string
           description?: string | null
           id?: string
