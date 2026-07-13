@@ -16,6 +16,7 @@ import {
 } from "@/lib/brand.functions";
 import { QuestionPreview, type TextFocus } from "@/components/QuestionPreview";
 import { FormDesignPanel, FormDesignPill } from "@/components/FormDesignPanel";
+import { PreviewSkeleton } from "@/components/PreviewSkeleton";
 import type { QuestionType } from "@/lib/question-types";
 import { supabase } from "@/integrations/supabase/client";
 import { themeStyle, backgroundClass, DEFAULT_THEME, type SurveyTheme } from "@/lib/survey-theme";
@@ -469,7 +470,22 @@ function SurveyComposer() {
             )}
             <Conversation className="flex-1">
               <ConversationContent className="mx-auto w-full max-w-[640px] px-6 pb-40 pt-8">
-                {messages.length === 0 ? (
+                {messages.length === 0 && seedPrompt ? (
+                  // Optimistic first paint during the Compose→Build handoff:
+                  // show the user's prompt + a shimmer immediately, before the
+                  // seed-send effect fires. Prevents an EmptyChat flash.
+                  <div className="space-y-6">
+                    <Message from="user">
+                      <MessageContent className="ml-auto max-w-[85%] rounded-2xl bg-card text-foreground">
+                        <MessageResponse isAnimating={false}>{seedPrompt}</MessageResponse>
+                      </MessageContent>
+                    </Message>
+                    <div className="flex items-center gap-2.5 pl-0.5 text-sm text-muted-foreground">
+                      <img src={agentMark} alt="" className="h-6 w-6 rounded-md" />
+                      <Shimmer>Composing…</Shimmer>
+                    </div>
+                  </div>
+                ) : messages.length === 0 ? (
                   <EmptyChat onPick={(t) => sendMessage({ text: t })} />
                 ) : (
                   <div className="space-y-6">
@@ -554,6 +570,7 @@ function SurveyComposer() {
                     </div>
                   )}
                   <PromptInput
+                    style={{ viewTransitionName: "compose-prompt" }}
                     className="rounded-2xl border-border bg-card/70 shadow-[0_24px_60px_-30px_rgba(255,122,69,0.35)] backdrop-blur"
                     onSubmit={async (msg) => {
                       const text = msg.text?.trim();
@@ -624,7 +641,10 @@ function SurveyComposer() {
           </div>
 
           {/* Preview pane */}
-          <PreviewPane
+          {questions.length === 0 ? (
+            <PreviewSkeleton theme={theme} />
+          ) : (
+            <PreviewPane
             title={survey?.title ?? ""}
             slug={survey?.slug ?? null}
             theme={theme}
@@ -652,7 +672,8 @@ function SurveyComposer() {
               config: (q.config ?? {}) as Record<string, unknown>,
             }))}
             onSelectText={(focus) => openDesign({ focus })}
-          />
+            />
+          )}
         </div>
       </div>
     </AppShell>

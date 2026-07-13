@@ -1,7 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { listSurveys, createSurvey } from "@/lib/surveys.functions";
 import { ArrowUpRight, Check, Copy, Radio, Sparkles, X } from "lucide-react";
@@ -157,13 +157,6 @@ const STARTERS: Starter[] = [
   },
 ];
 
-const BUILD_STEPS = [
-  "Drafting questions",
-  "Applying tags",
-  "Checking question quality",
-  "Preparing preview",
-];
-
 type Filter = "all" | "draft" | "live" | "closed";
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "All" },
@@ -197,6 +190,7 @@ function titleFromPrompt(prompt: string) {
 
 function SurveysIndex() {
   const navigate = useNavigate();
+  const router = useRouter();
   const qc = useQueryClient();
   const fetchList = useServerFn(listSurveys);
   const createFn = useServerFn(createSurvey);
@@ -233,6 +227,8 @@ function SurveysIndex() {
       createFn({ data: { title: titleFromPrompt(prompt) } }).then((s) => ({ s, prompt })),
     onSuccess: ({ s, prompt }) => {
       qc.invalidateQueries({ queryKey: ["surveys"] });
+      // Warm destination route JS + loader before navigating so first paint is immediate.
+      void router.preloadRoute({ to: "/surveys/$id", params: { id: s.id } });
       navigate({
         to: "/surveys/$id",
         params: { id: s.id },
@@ -284,18 +280,6 @@ function SurveysIndex() {
     return `${text}\n\nContext:\n- ${parts.join("\n- ")}`;
   }
 
-  // Animated build steps while creating (with active chip)
-  const [buildStep, setBuildStep] = useState(0);
-  useEffect(() => {
-    if (!create.isPending || !activeStarter) return;
-    setBuildStep(0);
-    const t = setInterval(() => {
-      setBuildStep((s) => Math.min(s + 1, BUILD_STEPS.length - 1));
-    }, 700);
-    return () => clearInterval(t);
-  }, [create.isPending, activeStarter]);
-
-  const showingBuild = create.isPending && activeStarter !== null;
   const composerKey = activeStarterId ?? "free";
   const composerSeed = activeStarter?.prompt ?? "";
   const ctaLabel = activeStarter
@@ -326,9 +310,7 @@ function SurveysIndex() {
           </div>
 
           <div className="mx-auto mt-8 w-full max-w-3xl">
-            {showingBuild ? (
-              <BuildingCard label={activeStarter!.label} step={buildStep} />
-            ) : (
+            <div style={{ viewTransitionName: "compose-prompt" }}>
               <PromptInputProvider key={composerKey} initialInput={composerSeed}>
                 <PromptInput
                   className="rounded-2xl border-border bg-card/80 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur focus-within:border-signal/40 focus-within:ring-1 focus-within:ring-signal/30"
@@ -357,9 +339,9 @@ function SurveysIndex() {
                   </PromptInputFooter>
                 </PromptInput>
               </PromptInputProvider>
-            )}
+            </div>
 
-            {!showingBuild && activeStarter && (
+            {activeStarter && (
               <CustomizePanel
                 starter={activeStarter}
                 answers={answers}
@@ -368,8 +350,7 @@ function SurveysIndex() {
               />
             )}
 
-            {!showingBuild && (
-              <div className="mt-5">
+            <div className="mt-5">
                 <div className="text-center text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                   Start with a template
                 </div>
@@ -393,8 +374,7 @@ function SurveysIndex() {
                     );
                   })}
                 </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Live now */}
@@ -722,55 +702,6 @@ function CustomizePanel({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function BuildingCard({ label, step }: { label: string; step: number }) {
-  return (
-    <div className="rounded-2xl border border-signal/30 bg-card/80 p-6 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur">
-      <div className="flex items-center gap-2.5">
-        <span className="relative grid h-6 w-6 place-items-center rounded-md bg-signal/15">
-          <span className="absolute inset-0 animate-ping rounded-md bg-signal/25" />
-          <Sparkles className="relative h-3.5 w-3.5 text-signal" />
-        </span>
-        <div className="font-display text-base font-medium tracking-tight">
-          Building your {label.toLowerCase()}...
-        </div>
-      </div>
-      <ul className="mt-5 space-y-2">
-        {BUILD_STEPS.map((s, i) => {
-          const done = i < step;
-          const active = i === step;
-          return (
-            <li key={s} className="flex items-center gap-2.5 text-sm">
-              <span
-                className={
-                  "grid h-4 w-4 place-items-center rounded-full border transition-colors " +
-                  (done
-                    ? "border-signal bg-signal text-signal-foreground"
-                    : active
-                      ? "border-signal/60 bg-signal/10"
-                      : "border-border bg-background/40")
-                }
-              >
-                {done ? (
-                  <Check className="h-2.5 w-2.5" />
-                ) : active ? (
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal" />
-                ) : null}
-              </span>
-              <span
-                className={
-                  done || active ? "text-foreground" : "text-muted-foreground"
-                }
-              >
-                {s}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
     </div>
   );
 }
