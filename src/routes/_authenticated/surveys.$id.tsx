@@ -284,8 +284,7 @@ function SurveyComposer() {
   const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
   const [designFocus, setDesignFocus] = useState<TextFocus | null>(null);
-  const [designDefaultTab, setDesignDefaultTab] =
-    useState<"content" | "size" | "style">("style");
+  const [designDefaultTab, setDesignDefaultTab] = useState<"content" | "size" | "style">("style");
 
   const lastMsg = messages[messages.length - 1];
   const readyWithReply =
@@ -588,35 +587,39 @@ function SurveyComposer() {
               onThemeChange={handleThemeChange}
               defaultTab={designDefaultTab}
               focus={designFocus}
-              content={survey ? {
-                survey: {
-                  id: survey.id,
-                  title: survey.title,
-                  description: survey.description ?? null,
-                  welcome_screen: (survey.welcome_screen ?? null) as {
-                    title?: string;
-                    description?: string;
-                    button?: string;
-                  } | null,
-                  thank_you_screen: (survey.thank_you_screen ?? null) as {
-                    title?: string;
-                    description?: string;
-                  } | null,
-                },
-                questions: questions.map((q) => ({
-                  id: q.id,
-                  type: q.type,
-                  title: q.title,
-                  description: q.description,
-                  config: (q.config ?? {}) as Record<string, unknown>,
-                })),
-                onUpdateSurvey: updateSurveyPatch,
-                onUpdateQuestion: (qid, patch) => {
-                  updateQuestionFn({ data: { id: qid, ...patch } })
-                    .then(() => qc.invalidateQueries({ queryKey: ["survey", id] }))
-                    .catch((e: Error) => toast.error(e.message));
-                },
-              } : undefined}
+              content={
+                survey
+                  ? {
+                      survey: {
+                        id: survey.id,
+                        title: survey.title,
+                        description: survey.description ?? null,
+                        welcome_screen: (survey.welcome_screen ?? null) as {
+                          title?: string;
+                          description?: string;
+                          button?: string;
+                        } | null,
+                        thank_you_screen: (survey.thank_you_screen ?? null) as {
+                          title?: string;
+                          description?: string;
+                        } | null,
+                      },
+                      questions: questions.map((q) => ({
+                        id: q.id,
+                        type: q.type,
+                        title: q.title,
+                        description: q.description,
+                        config: (q.config ?? {}) as Record<string, unknown>,
+                      })),
+                      onUpdateSurvey: updateSurveyPatch,
+                      onUpdateQuestion: (qid, patch) => {
+                        updateQuestionFn({ data: { id: qid, ...patch } })
+                          .then(() => qc.invalidateQueries({ queryKey: ["survey", id] }))
+                          .catch((e: Error) => toast.error(e.message));
+                      },
+                    }
+                  : undefined
+              }
             />
           </div>
 

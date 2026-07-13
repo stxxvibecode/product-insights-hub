@@ -59,9 +59,18 @@ export function QuestionPreview({
       <h2
         className={`font-display font-semibold leading-tight tracking-tight text-balance ${editable ? `${canvasClass} -mx-1 px-1` : ""}`}
         style={{ fontSize: "var(--t-heading, 2.25rem)" }}
-        onClick={editable && questionId ? (e) => select({ kind: "question-title", questionId }, e) : undefined}
+        onClick={
+          editable && questionId
+            ? (e) => select({ kind: "question-title", questionId }, e)
+            : undefined
+        }
       >
-        {title || (editable ? <span className="text-muted-foreground/60">Untitled question</span> : "Untitled question")}
+        {title ||
+          (editable ? (
+            <span className="text-muted-foreground/60">Untitled question</span>
+          ) : (
+            "Untitled question"
+          ))}
         {required && <span className="ml-1 text-signal">*</span>}
       </h2>
 
@@ -69,7 +78,11 @@ export function QuestionPreview({
         <p
           className={`text-muted-foreground text-pretty ${editable ? `${canvasClass} -mx-1 px-1` : ""}`}
           style={{ fontSize: "var(--t-body, 1rem)" }}
-          onClick={editable && questionId ? (e) => select({ kind: "question-description", questionId }, e) : undefined}
+          onClick={
+            editable && questionId
+              ? (e) => select({ kind: "question-description", questionId }, e)
+              : undefined
+          }
         >
           {description}
         </p>
@@ -198,13 +211,21 @@ export function QuestionPreview({
             <div className="mt-3 flex justify-between text-xs text-muted-foreground">
               <span
                 className={editable && questionId ? `${canvasClass} -mx-1 px-1` : ""}
-                onClick={editable && questionId ? (e) => select({ kind: "scale-min", questionId }, e) : undefined}
+                onClick={
+                  editable && questionId
+                    ? (e) => select({ kind: "scale-min", questionId }, e)
+                    : undefined
+                }
               >
                 {config.minLabel ?? "Low"}
               </span>
               <span
                 className={editable && questionId ? `${canvasClass} -mx-1 px-1` : ""}
-                onClick={editable && questionId ? (e) => select({ kind: "scale-max", questionId }, e) : undefined}
+                onClick={
+                  editable && questionId
+                    ? (e) => select({ kind: "scale-max", questionId }, e)
+                    : undefined
+                }
               >
                 {config.maxLabel ?? "High"}
               </span>
@@ -237,12 +258,13 @@ function ChoiceList({
     <div className="space-y-2">
       {options.map((opt, i) => {
         const active = selected.includes(opt);
-        const handle = editable && questionId
-          ? (e: React.MouseEvent) => {
-              e.stopPropagation();
-              onSelectText?.({ kind: "question-option", questionId, index: i });
-            }
-          : () => onSelect(opt);
+        const handle =
+          editable && questionId
+            ? (e: React.MouseEvent) => {
+                e.stopPropagation();
+                onSelectText?.({ kind: "question-option", questionId, index: i });
+              }
+            : () => onSelect(opt);
         return (
           <button
             key={opt + i}
@@ -265,7 +287,15 @@ function ChoiceList({
   );
 }
 
-function StarRow({ max, value, onChange }: { max: number; value: number; onChange: (n: number) => void }) {
+function StarRow({
+  max,
+  value,
+  onChange,
+}: {
+  max: number;
+  value: number;
+  onChange: (n: number) => void;
+}) {
   const [hover, setHover] = useState(0);
   return (
     <div className="flex gap-1.5" onMouseLeave={() => setHover(0)}>
@@ -287,11 +317,24 @@ function StarRow({ max, value, onChange }: { max: number; value: number; onChang
   );
 }
 
-function NumberRow({ min, max, value, onChange }: { min: number; max: number; value: number | null; onChange: (n: number) => void }) {
+function NumberRow({
+  min,
+  max,
+  value,
+  onChange,
+}: {
+  min: number;
+  max: number;
+  value: number | null;
+  onChange: (n: number) => void;
+}) {
   const items: number[] = [];
   for (let i = min; i <= max; i++) items.push(i);
   return (
-    <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+    <div
+      className="grid gap-1.5"
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+    >
       {items.map((n) => (
         <button
           key={n}

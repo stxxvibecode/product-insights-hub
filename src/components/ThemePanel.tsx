@@ -211,7 +211,10 @@ export function ThemePanel({
         </Group>
 
         {/* Tabs */}
-        <div role="tablist" className="inline-flex w-full rounded-lg border border-border bg-background p-0.5">
+        <div
+          role="tablist"
+          className="inline-flex w-full rounded-lg border border-border bg-background p-0.5"
+        >
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -225,19 +228,12 @@ export function ThemePanel({
           ))}
         </div>
 
-        {tab === "content" && content && (
-          <ContentTab content={content} focus={focus ?? null} />
-        )}
+        {tab === "content" && content && <ContentTab content={content} focus={focus ?? null} />}
 
         {tab === "size" && <SizeTab theme={theme} update={update} />}
 
         {tab === "style" && (
-          <StyleTab
-            theme={theme}
-            update={update}
-            hexDraft={hexDraft}
-            onHexChange={onHexChange}
-          />
+          <StyleTab theme={theme} update={update} hexDraft={hexDraft} onHexChange={onHexChange} />
         )}
       </div>
     </div>
@@ -580,7 +576,15 @@ function TextField({
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-2">
       <div>
@@ -694,10 +698,7 @@ function StyleTab({
                 className={`group relative h-9 w-9 overflow-hidden rounded-full ring-1 transition-transform hover:-translate-y-0.5 ${active ? "ring-2 ring-foreground" : "ring-border"}`}
                 style={{ background: p.swatch[0] }}
               >
-                <span
-                  className="absolute inset-1 rounded-full"
-                  style={{ background: p.accent }}
-                />
+                <span className="absolute inset-1 rounded-full" style={{ background: p.accent }} />
               </button>
             );
           })}

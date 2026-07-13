@@ -97,8 +97,7 @@ function SurveyBuilder() {
   });
   const [designOpen, setDesignOpen] = useState(false);
   const [designFocus, setDesignFocus] = useState<TextFocus | null>(null);
-  const [designDefaultTab, setDesignDefaultTab] =
-    useState<"content" | "size" | "style">("content");
+  const [designDefaultTab, setDesignDefaultTab] = useState<"content" | "size" | "style">("content");
 
   function openDesign(opts?: { focus?: TextFocus; tab?: "content" | "size" | "style" }) {
     setDesignFocus(opts?.focus ?? null);
@@ -658,7 +657,8 @@ function Inspector({
 
       <div className="rounded-lg border border-dashed border-border bg-card/40 px-3 py-2 text-[11px] text-muted-foreground">
         Edit question wording, description, and options in{" "}
-        <span className="text-foreground">Form Design</span> — click the pill above the preview or click any text on the canvas.
+        <span className="text-foreground">Form Design</span> — click the pill above the preview or
+        click any text on the canvas.
       </div>
 
       <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
