@@ -44,22 +44,27 @@ const fnTimingMiddleware = createMiddleware({ type: "function" }).server(
     // Pull a label off the active request URL since FunctionMiddleware doesn't
     // expose the function id directly.
     let label = "server-fn";
+    let hasAuth = false;
     try {
       const { getRequest } = await import("@tanstack/react-start/server");
       const req = getRequest();
       label = new URL(req.url).pathname;
+      hasAuth = !!req.headers.get("authorization");
     } catch {
       // not in a request context — keep default label
+    }
+    if (!hasAuth) {
+      console.warn(`[perf:fn] no-auth-header ${label}`);
     }
     try {
       const result = await next();
       const ms = Date.now() - start;
       const tag = ms > 800 ? "SLOW" : ms > 300 ? "warn" : "ok";
-      console.log(`[perf:fn] ${tag} ${ms}ms ${label}`);
+      console.log(`[perf:fn] ${tag} ${ms}ms ${label} auth=${hasAuth ? "y" : "n"}`);
       return result;
     } catch (err) {
       const ms = Date.now() - start;
-      console.log(`[perf:fn] ERR ${ms}ms ${label}`);
+      console.log(`[perf:fn] ERR ${ms}ms ${label} auth=${hasAuth ? "y" : "n"}`);
       throw err;
     }
   },
