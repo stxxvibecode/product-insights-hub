@@ -641,7 +641,10 @@ function SurveyComposer() {
           </div>
 
           {/* Preview pane */}
-          <PreviewPane
+          {questions.length === 0 ? (
+            <PreviewSkeleton theme={theme} />
+          ) : (
+            <PreviewPane
             title={survey?.title ?? ""}
             slug={survey?.slug ?? null}
             theme={theme}
@@ -669,7 +672,8 @@ function SurveyComposer() {
               config: (q.config ?? {}) as Record<string, unknown>,
             }))}
             onSelectText={(focus) => openDesign({ focus })}
-          />
+            />
+          )}
         </div>
       </div>
     </AppShell>
