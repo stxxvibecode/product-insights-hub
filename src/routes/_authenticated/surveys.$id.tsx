@@ -576,11 +576,17 @@ function SurveyComposer() {
               {designOpen && (
                 <motion.div
                   key="design-panel"
-                  initial={{ x: "-100%" }}
-                  animate={{ x: 0 }}
-                  exit={{ x: "-100%" }}
-                  transition={{ type: "spring", stiffness: 520, damping: 44, mass: 0.7 }}
-                  className="absolute inset-0 z-40 flex flex-col bg-background will-change-transform"
+                  initial={{ x: "-100%", opacity: 1, scale: 1, filter: "blur(0px)" }}
+                  animate={{ x: 0, opacity: 1, scale: 1, filter: "blur(0px)" }}
+                  exit={{ x: 0, opacity: 0, scale: 0.98, filter: "blur(6px)" }}
+                  transition={{
+                    x: { type: "spring", stiffness: 520, damping: 44, mass: 0.7 },
+                    opacity: { duration: 0.18, ease: "easeOut" },
+                    scale: { duration: 0.18, ease: "easeOut" },
+                    filter: { duration: 0.18, ease: "easeOut" },
+                  }}
+                  style={{ willChange: "transform, opacity, filter" }}
+                  className="absolute inset-0 z-40 flex flex-col bg-background"
                 >
                     <div className="flex items-center justify-between border-b border-border px-5 py-3">
                       <div className="flex items-center gap-2">
