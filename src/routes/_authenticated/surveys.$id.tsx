@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { AppShell } from "@/components/AppShell";
 import { getSurvey, updateSurvey } from "@/lib/surveys.functions";
+import { updateQuestion } from "@/lib/questions.functions";
 import { listSurveyChat } from "@/lib/survey-chat.functions";
 import {
   getWorkspaceBrandProfile,
@@ -100,6 +101,7 @@ function SurveyComposer() {
   const fetchChat = useServerFn(listSurveyChat);
   const fetchBrand = useServerFn(getWorkspaceBrandProfile);
   const updateSurveyFn = useServerFn(updateSurvey);
+  const updateQuestionFn = useServerFn(updateQuestion);
 
   const surveyQ = useQuery({
     queryKey: ["survey", id],
@@ -610,11 +612,9 @@ function SurveyComposer() {
                 })),
                 onUpdateSurvey: updateSurveyPatch,
                 onUpdateQuestion: (qid, patch) => {
-                  updateSurveyFn; // no-op; use existing chat tools? — fallback to invalidate
-                  // Directly write via updateQuestion is not wired here (chat page manages
-                  // questions via the AI tools). For now, fall back to a warning if invoked.
-                  toast.message("Question edits happen in the Advanced editor for now.");
-                  void qid; void patch;
+                  updateQuestionFn({ data: { id: qid, ...patch } })
+                    .then(() => qc.invalidateQueries({ queryKey: ["survey", id] }))
+                    .catch((e: Error) => toast.error(e.message));
                 },
               } : undefined}
             />
