@@ -570,6 +570,7 @@ function SurveyComposer() {
                     </div>
                   )}
                   <PromptInput
+                    style={{ viewTransitionName: "compose-prompt" }}
                     className="rounded-2xl border-border bg-card/70 shadow-[0_24px_60px_-30px_rgba(255,122,69,0.35)] backdrop-blur"
                     onSubmit={async (msg) => {
                       const text = msg.text?.trim();
