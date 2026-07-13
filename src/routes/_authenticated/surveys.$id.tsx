@@ -574,24 +574,14 @@ function SurveyComposer() {
             </div>
             <AnimatePresence>
               {designOpen && (
-                <>
-                  <motion.div
-                    key="design-backdrop"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute inset-0 z-30 bg-background/60 backdrop-blur-sm"
-                    onClick={() => setDesignOpen(false)}
-                  />
-                  <motion.div
-                    key="design-panel"
-                    initial={{ x: "-100%" }}
-                    animate={{ x: 0 }}
-                    exit={{ x: "-100%" }}
-                    transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-                    className="absolute inset-0 z-40 flex flex-col bg-background shadow-2xl"
-                  >
+                <motion.div
+                  key="design-panel"
+                  initial={{ x: "-100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "-100%" }}
+                  transition={{ type: "spring", stiffness: 520, damping: 44, mass: 0.7 }}
+                  className="absolute inset-0 z-40 flex flex-col bg-background will-change-transform"
+                >
                     <div className="flex items-center justify-between border-b border-border px-5 py-3">
                       <div className="flex items-center gap-2">
                         <Palette className="h-4 w-4 text-signal" />
@@ -609,8 +599,7 @@ function SurveyComposer() {
                     <div className="min-h-0 flex-1 overflow-y-auto">
                       <ThemePanel theme={theme} onChange={handleThemeChange} />
                     </div>
-                  </motion.div>
-                </>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
