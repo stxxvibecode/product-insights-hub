@@ -54,6 +54,7 @@ import {
   Sparkles,
   Upload,
   Wand2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
