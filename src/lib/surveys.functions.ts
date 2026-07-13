@@ -109,6 +109,15 @@ export const updateSurvey = createServerFn({ method: "POST" })
       thank_you_screen?: { title: string; description: string };
       theme?: Record<string, unknown>;
       brand_overrides?: Record<string, unknown>;
+    } | {
+      id: string;
+      title?: string;
+      description?: string | null;
+      status?: "draft" | "live" | "closed";
+      welcome_screen?: { title?: string; description?: string; button?: string } | null;
+      thank_you_screen?: { title?: string; description?: string } | null;
+      theme?: Record<string, unknown>;
+      brand_overrides?: Record<string, unknown>;
     }) =>
       z
         .object({
