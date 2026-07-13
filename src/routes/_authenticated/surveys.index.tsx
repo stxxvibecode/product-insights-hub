@@ -157,13 +157,6 @@ const STARTERS: Starter[] = [
   },
 ];
 
-const BUILD_STEPS = [
-  "Drafting questions",
-  "Applying tags",
-  "Checking question quality",
-  "Preparing preview",
-];
-
 type Filter = "all" | "draft" | "live" | "closed";
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "All" },
