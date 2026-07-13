@@ -374,9 +374,12 @@ function SurveyBuilder() {
 
           {/* Live preview */}
           <section
-            className={`col-span-12 min-h-[calc(100vh-130px)] border-r border-border bg-card/30 px-6 py-10 lg:col-span-6 ${backgroundClass(theme)}`}
+            className={`relative col-span-12 min-h-[calc(100vh-130px)] border-r border-border bg-card/30 px-6 py-10 lg:col-span-6 ${backgroundClass(theme)}`}
             style={themeStyle(theme)}
           >
+            <div className="absolute right-4 top-4 z-10">
+              <FormDesignPill onClick={() => openDesign({ tab: "content" })} />
+            </div>
             <div className="mx-auto max-w-xl">
               <div className="mb-4 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 Live preview
@@ -406,6 +409,39 @@ function SurveyBuilder() {
                 </div>
               )}
             </div>
+            <FormDesignPanel
+              open={designOpen}
+              onClose={() => setDesignOpen(false)}
+              theme={theme}
+              onThemeChange={handleThemeChange}
+              defaultTab={designDefaultTab}
+              focus={designFocus}
+              content={{
+                survey: {
+                  id: data.survey.id,
+                  title: data.survey.title,
+                  description: data.survey.description ?? null,
+                  welcome_screen: (data.survey.welcome_screen ?? null) as {
+                    title?: string;
+                    description?: string;
+                    button?: string;
+                  } | null,
+                  thank_you_screen: (data.survey.thank_you_screen ?? null) as {
+                    title?: string;
+                    description?: string;
+                  } | null,
+                },
+                questions: data.questions.map((q) => ({
+                  id: q.id,
+                  type: q.type,
+                  title: q.title,
+                  description: q.description,
+                  config: (q.config ?? {}) as Record<string, unknown>,
+                })),
+                onUpdateSurvey: (patch) => mUpdateSurvey.mutate({ id, ...patch }),
+                onUpdateQuestion: (qid, patch) => mUpdateQ.mutate({ id: qid, ...patch }),
+              }}
+            />
           </section>
 
           {/* Inspector */}
