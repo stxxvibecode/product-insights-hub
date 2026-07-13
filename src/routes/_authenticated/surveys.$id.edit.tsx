@@ -39,6 +39,8 @@ import {
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { QuestionPreview } from "@/components/QuestionPreview";
+import type { TextFocus } from "@/components/QuestionPreview";
+import { FormDesignPanel, FormDesignPill } from "@/components/FormDesignPanel";
 import { getSurvey, updateSurvey, deleteSurvey } from "@/lib/surveys.functions";
 import {
   addQuestion,
@@ -93,6 +95,16 @@ function SurveyBuilder() {
     title: "",
     description: "",
   });
+  const [designOpen, setDesignOpen] = useState(false);
+  const [designFocus, setDesignFocus] = useState<TextFocus | null>(null);
+  const [designDefaultTab, setDesignDefaultTab] =
+    useState<"content" | "size" | "style">("content");
+
+  function openDesign(opts?: { focus?: TextFocus; tab?: "content" | "size" | "style" }) {
+    setDesignFocus(opts?.focus ?? null);
+    setDesignDefaultTab(opts?.tab ?? (opts?.focus ? "content" : "content"));
+    setDesignOpen(true);
+  }
 
   useEffect(() => {
     if (data?.survey)
@@ -384,13 +396,8 @@ function SurveyBuilder() {
                     config={(selected.config ?? {}) as never}
                     value={undefined}
                     onChange={() => {}}
-                    editable
-                    onEditTitle={(title) => mUpdateQ.mutate({ id: selected.id, title })}
-                    onEditDescription={(description) => mUpdateQ.mutate({ id: selected.id, description })}
-                    onEditConfig={(patch) => {
-                      const current = (selected.config ?? {}) as Record<string, unknown>;
-                      mUpdateQ.mutate({ id: selected.id, config: { ...current, ...patch } });
-                    }}
+                    questionId={selected.id}
+                    onSelectText={(focus) => openDesign({ focus })}
                   />
                 </motion.div>
               ) : (
