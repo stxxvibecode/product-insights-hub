@@ -793,6 +793,7 @@ function PreviewPane({
   thanks,
   description,
   brand,
+  onSelectText,
 }: {
   title: string;
   slug: string | null;
@@ -808,6 +809,7 @@ function PreviewPane({
     thankYouFallback: string | null;
     hasOverrides: boolean;
   };
+  onSelectText?: (focus: TextFocus) => void;
 }) {
   const [idx, setIdx] = useState(0);
   const [value, setValue] = useState<unknown>(null);
@@ -1011,6 +1013,8 @@ function PreviewPane({
                       config={q.config}
                       value={value}
                       onChange={setValue}
+                      questionId={q.id}
+                      onSelectText={onSelectText}
                     />
                   )}
                 </div>
