@@ -635,8 +635,6 @@ function Inspector({
   }) => void;
   onDelete: () => void;
 }) {
-  const [title, setTitle] = useState(question.title);
-  const [description, setDescription] = useState(question.description ?? "");
   const cfg = (question.config ?? {}) as {
     options?: string[];
     max?: number;
@@ -644,11 +642,6 @@ function Inspector({
     minLabel?: string;
     maxLabel?: string;
   };
-
-  useEffect(() => {
-    setTitle(question.title);
-    setDescription(question.description ?? "");
-  }, [question.id]);
 
   return (
     <div className="space-y-5">
@@ -663,29 +656,10 @@ function Inspector({
         </button>
       </div>
 
-      <Field label="Question">
-        <textarea
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => title !== question.title && onChange({ title })}
-          rows={2}
-          className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60 focus:ring-2 focus:ring-signal/20"
-        />
-      </Field>
-
-      <Field label="Description">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={() =>
-            (description || "") !== (question.description || "") &&
-            onChange({ description: description || null })
-          }
-          rows={2}
-          placeholder="Optional helper text"
-          className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60 focus:ring-2 focus:ring-signal/20"
-        />
-      </Field>
+      <div className="rounded-lg border border-dashed border-border bg-card/40 px-3 py-2 text-[11px] text-muted-foreground">
+        Edit question wording, description, and options in{" "}
+        <span className="text-foreground">Form Design</span> — click the pill above the preview or click any text on the canvas.
+      </div>
 
       <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
         <span>Required</span>
@@ -697,12 +671,6 @@ function Inspector({
         />
       </label>
 
-      {(question.type === "single_choice" || question.type === "multi_choice") && (
-        <OptionEditor
-          options={cfg.options ?? []}
-          onChange={(options) => onChange({ config: { ...cfg, options } })}
-        />
-      )}
       {question.type === "rating" && (
         <Field label="Max stars">
           <input
@@ -721,17 +689,19 @@ function Inspector({
       )}
       {question.type === "scale" && (
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Min label">
+          <Field label="Min value">
             <input
-              value={cfg.minLabel ?? ""}
-              onChange={(e) => onChange({ config: { ...cfg, minLabel: e.target.value } })}
+              type="number"
+              value={cfg.min ?? 1}
+              onChange={(e) => onChange({ config: { ...cfg, min: Number(e.target.value) } })}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60"
             />
           </Field>
-          <Field label="Max label">
+          <Field label="Max value">
             <input
-              value={cfg.maxLabel ?? ""}
-              onChange={(e) => onChange({ config: { ...cfg, maxLabel: e.target.value } })}
+              type="number"
+              value={cfg.max ?? 7}
+              onChange={(e) => onChange({ config: { ...cfg, max: Number(e.target.value) } })}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60"
             />
           </Field>
