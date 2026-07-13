@@ -201,6 +201,8 @@ function SurveyBuilder() {
   });
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [editDraftOpen, setEditDraftOpen] = useState(false);
   function onDragEnd(e: DragEndEvent) {
     if (!data) return;
     const { active, over } = e;
@@ -237,8 +239,6 @@ function SurveyBuilder() {
   const isLive = data.survey.status === "live";
   const isEditDraft = Boolean(data.survey.is_edit_draft);
   const parentSurveyId = data.survey.parent_survey_id as string | null;
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [editDraftOpen, setEditDraftOpen] = useState(false);
 
   return (
     <AppShell>
