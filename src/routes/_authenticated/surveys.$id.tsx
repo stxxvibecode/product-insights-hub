@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { AppShell } from "@/components/AppShell";
 import { getSurvey, updateSurvey } from "@/lib/surveys.functions";
 import { listSurveyChat } from "@/lib/survey-chat.functions";
@@ -13,10 +13,10 @@ import {
   resolveWorkspaceBrand,
   themeFromBrand,
 } from "@/lib/brand.functions";
-import { QuestionPreview } from "@/components/QuestionPreview";
+import { QuestionPreview, type TextFocus } from "@/components/QuestionPreview";
+import { FormDesignPanel, FormDesignPill } from "@/components/FormDesignPanel";
 import type { QuestionType } from "@/lib/question-types";
 import { supabase } from "@/integrations/supabase/client";
-import { ThemePanel } from "@/components/ThemePanel";
 import { themeStyle, backgroundClass, DEFAULT_THEME, type SurveyTheme } from "@/lib/survey-theme";
 import {
   Conversation,
@@ -54,7 +54,6 @@ import {
   Sparkles,
   Upload,
   Wand2,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -281,22 +280,29 @@ function SurveyComposer() {
   // Suggested next actions — show once after the first assistant reply completes.
   const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
-
-  useEffect(() => {
-    if (!designOpen) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setDesignOpen(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [designOpen]);
+  const [designFocus, setDesignFocus] = useState<TextFocus | null>(null);
+  const [designDefaultTab, setDesignDefaultTab] =
+    useState<"content" | "size" | "style">("style");
 
   const lastMsg = messages[messages.length - 1];
   const readyWithReply =
     status === "ready" && messages.length >= 2 && lastMsg?.role === "assistant";
 
-  function openDesign() {
+  function openDesign(opts?: { focus?: TextFocus; tab?: "content" | "size" | "style" }) {
+    setDesignFocus(opts?.focus ?? null);
+    setDesignDefaultTab(opts?.tab ?? (opts?.focus ? "content" : "style"));
     setDesignOpen(true);
+  }
+
+  function updateSurveyPatch(patch: {
+    title?: string;
+    description?: string | null;
+    welcome_screen?: { title?: string; description?: string; button?: string } | null;
+    thank_you_screen?: { title?: string; description?: string } | null;
+  }) {
+    updateSurveyFn({ data: { id, ...patch } })
+      .then(() => qc.invalidateQueries({ queryKey: ["survey", id] }))
+      .catch((e: Error) => toast.error(e.message));
   }
 
   const suggestions: {
@@ -453,7 +459,7 @@ function SurveyComposer() {
             {questions.length > 0 && !designOpen && (
               <button
                 type="button"
-                onClick={openDesign}
+                onClick={() => openDesign({ tab: "style" })}
                 className="absolute right-4 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs text-foreground shadow-sm backdrop-blur transition-colors hover:border-signal/40"
               >
                 <Palette className="h-3.5 w-3.5 text-signal" /> Form Design
@@ -572,42 +578,45 @@ function SurveyComposer() {
                 </div>
               </div>
             </div>
-            <AnimatePresence>
-              {designOpen && (
-                <motion.div
-                  key="design-panel"
-                  initial={{ x: "-100%", opacity: 1, scale: 1, filter: "blur(0px)" }}
-                  animate={{ x: 0, opacity: 1, scale: 1, filter: "blur(0px)" }}
-                  exit={{ x: 0, opacity: 0, scale: 0.98, filter: "blur(6px)" }}
-                  transition={{
-                    x: { type: "spring", stiffness: 520, damping: 44, mass: 0.7 },
-                    opacity: { duration: 0.18, ease: "easeOut" },
-                    scale: { duration: 0.18, ease: "easeOut" },
-                    filter: { duration: 0.18, ease: "easeOut" },
-                  }}
-                  style={{ willChange: "transform, opacity, filter" }}
-                  className="absolute inset-0 z-40 flex flex-col bg-background"
-                >
-                    <div className="flex items-center justify-between border-b border-border px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <Palette className="h-4 w-4 text-signal" />
-                        <span className="font-display text-sm font-medium">Form Design</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setDesignOpen(false)}
-                        aria-label="Close form design"
-                        className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
-                      <ThemePanel theme={theme} onChange={handleThemeChange} />
-                    </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <FormDesignPanel
+              open={designOpen}
+              onClose={() => setDesignOpen(false)}
+              theme={theme}
+              onThemeChange={handleThemeChange}
+              defaultTab={designDefaultTab}
+              focus={designFocus}
+              content={survey ? {
+                survey: {
+                  id: survey.id,
+                  title: survey.title,
+                  description: survey.description ?? null,
+                  welcome_screen: (survey.welcome_screen ?? null) as {
+                    title?: string;
+                    description?: string;
+                    button?: string;
+                  } | null,
+                  thank_you_screen: (survey.thank_you_screen ?? null) as {
+                    title?: string;
+                    description?: string;
+                  } | null,
+                },
+                questions: questions.map((q) => ({
+                  id: q.id,
+                  type: q.type,
+                  title: q.title,
+                  description: q.description,
+                  config: (q.config ?? {}) as Record<string, unknown>,
+                })),
+                onUpdateSurvey: updateSurveyPatch,
+                onUpdateQuestion: (qid, patch) => {
+                  updateSurveyFn; // no-op; use existing chat tools? — fallback to invalidate
+                  // Directly write via updateQuestion is not wired here (chat page manages
+                  // questions via the AI tools). For now, fall back to a warning if invoked.
+                  toast.message("Question edits happen in the Advanced editor for now.");
+                  void qid; void patch;
+                },
+              } : undefined}
+            />
           </div>
 
           {/* Preview pane */}
