@@ -1,112 +1,61 @@
-# Form Design becomes the canvas — Canva-style text + sizing editor
+# Choreographed Compose → Build handoff
 
-## Vision
-Form Design is where you edit the form. Just like Canva's editor: the preview on the right IS the canvas, every piece of text is clickable, and the Form Design panel on the left shows the controls for what you selected — copy, size, and style. No more inline text editing scattered across the app.
+Today's flow has three visible seams: (1) the index page shows a "BuildingCard" step ticker while the survey row is created, (2) the browser then hard-cuts to `/surveys/$id`, which briefly renders `EmptyChat` and a blank preview column, (3) the seed prompt effect fires and the user's message + shimmer finally appear. The route jump feels like a hard cut because those three states don't share any visual continuity.
 
-## Scope (this iteration)
-Applies to the compose page (`/surveys/$id`) AND the editor's Build tab (`/surveys/$id/edit`). The Inspector on the edit page keeps its non-text controls (type, required, tags, branching); it just stops handling copy.
+The fix is to make the prompt input the anchor of one continuous motion, and to make the destination page render the "AI is composing" state on first paint — no empty chat, no blank preview.
 
-## Model changes
-Extend `SurveyTheme` in `src/lib/survey-theme.ts`:
-- `text_scale?: "s" | "m" | "l"` — one master multiplier applied to every text size (S = 0.9x, M = 1x, L = 1.15x).
-- `heading_size?: "sm" | "md" | "lg" | "xl"` — question titles / welcome / thank-you headings.
-- `body_size?: "sm" | "md" | "lg"` — descriptions and helper copy.
-- `button_size?: "sm" | "md" | "lg"` — start / next / submit buttons.
-- `density?: "compact" | "comfortable" | "spacious"` — vertical spacing between elements.
+## User-visible behavior
 
-`themeStyle()` writes these as CSS variables `--t-heading`, `--t-body`, `--t-button`, `--t-gap` (numeric rem values combined with `text_scale`). `QuestionPreview` and the compose `PreviewPane` read those vars via inline `style={{ fontSize: "var(--t-heading)" }}` etc.
+- Type a prompt on `/surveys`, hit Compose.
+- The prompt card lifts and slides toward its final position (sticky composer at the bottom of the chat column). Behind it, the split layout of the compose page fades in.
+- The typed text appears as the first user message bubble at the top of the chat column, with the "Composing…" shimmer immediately underneath. No `EmptyChat` flash.
+- The right-hand preview column shows a soft skeleton (welcome card outline + 2 question outlines) that crossfades into the real preview as tool calls complete.
+- The `BuildingCard` step ticker on the index page is removed — its role (telling the user something is happening) moves to the destination page where the actual work is happening.
 
-Defaults added to `DEFAULT_THEME` so existing surveys render unchanged. No migration needed — `theme` is a JSONB column and new keys default in code.
+## Technical plan
 
-## Form Design panel redesign — `src/components/ThemePanel.tsx`
-The panel becomes a segmented tri-tab layout with the existing AI prompt sitting above the tabs so it always steers whatever's open:
+### 1. Remove the index-side interstitial
+File: `src/routes/_authenticated/surveys.index.tsx`
+- Delete the `showingBuild` branch and `BuildingCard` render. Keep `BUILD_STEPS` only if reused; otherwise drop.
+- Keep the prompt input mounted during `create.isPending` (disable submit + show inline spinner in `PromptInputSubmit`).
+- On `create.mutate`, also call `router.preloadRoute({ to: "/surveys/$id", params: { id: s.id } })` inside `onSuccess` right before `navigate(...)` so the destination JS/data is warm.
 
-```
-[ Sparkles: describe the look ]
-──────────────────────────────
-[ Content ] [ Size ] [ Style ]
+### 2. Shared-element morph for the prompt card
+Use Motion `layoutId` to visually tie the two composers together.
+- Wrap the index `<PromptInput>` in a `motion.div layoutId="compose-prompt"` inside a `LayoutGroup`.
+- Wrap the destination sticky composer (`surveys.$id.tsx` lines ~556–579) in the same `motion.div layoutId="compose-prompt"`.
+- Because `LayoutGroup` doesn't cross routes, use Motion's route-level shared layout by wrapping both routes' composers with the same `layoutId` and enabling the browser's View Transitions API via TanStack Router (`router.navigate({ viewTransition: true })`). Fallback: if View Transitions unsupported, do a 180ms crossfade using `AnimatePresence` on the outgoing index content.
 
-Content tab:
-  Form
-    • Title            [inline input]
-    • Description      [inline textarea]
-  Welcome screen
-    • Headline         [input]
-    • Subtitle         [textarea]
-    • Start button     [input]
-  Questions            (accordion, one per question)
-    • Q1 · Title       [input]
-      Description      [textarea]
-      Options          [list of inputs + add/remove]
-    • Q2 · …
-  Thank-you screen
-    • Headline         [input]
-    • Message          [textarea]
+### 3. Optimistic first-paint on the destination
+File: `src/routes/_authenticated/surveys.$id.tsx`
+- When `seedPrompt` is present AND `messages.length === 0`, render an optimistic user bubble containing `seedPrompt` and the "Composing…" shimmer immediately — before `chatQ` resolves and before `sendMessage` fires. This eliminates the `EmptyChat` flash and the blank interval between mount and first stream chunk.
+- Gate `EmptyChat` on `chatQ.isFetched && !seedPrompt && messages.length === 0` so it only appears for truly empty visits without a seed.
+- Keep the existing seed-send effect; it will simply replace the optimistic bubble with the real streamed message once `sendMessage` runs.
+- Hide the "Form Design" pill until `questions.length > 0` (already the case) — no change.
 
-Size tab:
-  Text scale       [S · M · L segmented]
-  Heading size     [SM · MD · LG · XL segmented]
-  Body size        [SM · MD · LG]
-  Button size      [SM · MD · LG]
-  Density          [Compact · Comfortable · Spacious]
+### 4. Preview column skeleton
+File: `src/routes/_authenticated/surveys.$id.tsx` (right pane render, around the `PreviewPane` usage)
+- When `questions.length === 0`, render a `PreviewSkeleton` component: a muted welcome card, two shimmering question card outlines, using the current `theme` background so it feels like the same surface.
+- Crossfade (`AnimatePresence`, 220ms) from skeleton → real `PreviewPane` when the first question arrives.
 
-Style tab: current content unchanged
-  (Accent, custom accent, background, typography, corners, reset)
-```
+### 5. Motion + timing polish
+- Route transition: spring `{ stiffness: 480, damping: 42, mass: 0.7 }` on the shared prompt element, matching the Form Design panel spring so the app has one motion language.
+- Fade durations 180–220ms with `ease: [0.32, 0.72, 0, 1]` (already used in Form Design panel).
+- Respect `prefers-reduced-motion`: skip the shared-element morph and just crossfade at 120ms.
 
-New props on `ThemePanel` (all optional so existing callers work):
-- `survey?: { id, title, description, welcome_screen, thank_you_screen }`
-- `questions?: Array<{ id, title, description, config, type }>`
-- `onUpdateSurvey?: (patch) => void`
-- `onUpdateQuestion?: (id, patch) => void`
-- `focus?: { kind: "form-title" | "welcome-*" | "thanks-*" | "question", id?: string }` — deep-link to a field
-- `defaultTab?: "content" | "size" | "style"`
+### 6. Files touched
+1. `src/routes/_authenticated/surveys.index.tsx` — remove `BuildingCard` render, keep input mounted while pending, add `preloadRoute`, wrap composer in shared `layoutId`.
+2. `src/routes/_authenticated/surveys.$id.tsx` — optimistic first-paint bubble + shimmer, gate `EmptyChat`, wrap sticky composer in shared `layoutId`, mount `PreviewSkeleton` while `questions.length === 0`.
+3. `src/components/PreviewSkeleton.tsx` — **new**. Themed placeholder cards for the preview column.
+4. `src/router.tsx` — enable `defaultViewTransition: true` (TanStack Router supports view transitions on navigation).
 
-When Content props aren't supplied, hide the Content tab (backward compatible during rollout).
-
-## Canvas click-to-edit — compose page (`src/routes/_authenticated/surveys.$id.tsx`)
-In `PreviewPane`, wrap every editable text node in a small `<CanvasClick />` helper that:
-- On hover shows a 1px dashed accent outline + subtle background tint.
-- On click sets `designOpen = true` in the parent and passes a `focus={…}` payload naming the field/question.
-- Uses `tabIndex={0}` + keyboard activation for a11y.
-
-Fields wired:
-- Form title (welcome + question tabs header)
-- Welcome headline / subtitle / start button
-- Thank-you headline / message
-- Current question title / description / choice options (when tab === "question")
-
-Panel opens with the correct tab (`content` for text clicks, `style` for the pill button) and scrolls the focused field into view + focuses its input.
-
-## Editor Build tab (`src/routes/_authenticated/surveys.$id.edit.tsx`)
-- Add the same **Form Design** pill in the Build tab header (top-right of the middle preview column).
-- Reuse the slide-over animation from the compose page, sourced from the same `<FormDesignPanel />` wrapper component (extracted for reuse; lives in `src/components/FormDesignPanel.tsx`).
-- Pass the same click-to-edit into the Build tab's `<QuestionPreview>` by removing its own `editable` mode and adding `onSelectText={(focus) => openDesign(focus)}` instead. Options edit now happens inside Form Design's Content tab.
-- Remove: `editable`, `onEditTitle`, `onEditDescription`, `onEditConfig` from `QuestionPreview` (component + call sites). Inspector keeps its non-text controls (type, required, tags, branching, delete); its "Title" and "Description" fields are removed.
-- The main title input in the edit page header stays (it's chrome, not the form).
-
-## Files touched
-1. `src/lib/survey-theme.ts` — new sizing keys, defaults, CSS var output.
-2. `src/components/ThemePanel.tsx` — tri-tab redesign, new props.
-3. `src/components/FormDesignPanel.tsx` — **new**. Extracts the slide-over shell (motion transitions, close, escape) so both pages share it. Renders `<ThemePanel />` with the shared props.
-4. `src/components/QuestionPreview.tsx` — drop `editable` mode; add `onSelectText?: (focus) => void` and wrap texts with a click-to-select overlay. Consume new size CSS vars.
-5. `src/routes/_authenticated/surveys.$id.tsx` — replace inline `<motion.div>` slide-over with `<FormDesignPanel />`; wrap preview texts in `<CanvasClick />`; wire `focus` state.
-6. `src/routes/_authenticated/surveys.$id.edit.tsx` — add Form Design pill + `<FormDesignPanel />`; drop the `editable` props on `<QuestionPreview>`; slim Inspector.
-7. Public respondent page (`src/routes/s.$slug.tsx`) — unaffected (never passed `editable`).
-
-No server function, DB, or RLS changes.
-
-## UX rules
-- Only ONE element is selected at a time. Selecting a new one changes the focused field in the open panel; the panel doesn't re-open if already open.
-- Clicking outside any text in the preview does nothing; use the × / Escape / pill to close.
-- On the compose page the pill still opens the Style tab by default (matches the existing "Customize design" suggestion).
-- Density and scale changes animate smoothly (200ms) so the canvas feels alive.
+No server function, DB, or auth changes.
 
 ## Verification
-- Compose page: click the welcome headline → panel slides in, Content tab open, headline input focused, typing updates the preview live.
-- Change Text scale to L → every text in the preview grows in unison.
-- Change Density to Spacious → question card gains vertical breathing room.
-- Editor Build tab: Form Design pill opens the same panel; renaming a choice option in the Content tab updates the middle preview and the Inspector metadata (options count) in sync.
-- Inspector no longer has Title/Description inputs; Type, Required, Tags, Branching, Delete still work.
-- Existing surveys load with unchanged appearance (defaults preserved).
+
+- From `/surveys`, type a prompt and hit Compose: the prompt card visibly moves to the destination composer position; no BuildingCard step ticker; no blank chat area at any point.
+- The typed prompt appears immediately as a user bubble on the destination page with "Composing…" underneath, before the first stream chunk.
+- The right column shows a themed skeleton immediately, then crossfades to real question cards as tools complete.
+- With `prefers-reduced-motion: reduce`, the same flow works as a quick crossfade with no morph.
+- Refreshing `/surveys/$id` with no `?prompt=` param and existing chat still renders the saved history exactly as today.
 - `tsgo --noEmit` clean.
