@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { AppShell } from "@/components/AppShell";
 import { getSurvey, updateSurvey } from "@/lib/surveys.functions";
 import { listSurveyChat } from "@/lib/survey-chat.functions";
@@ -279,14 +280,23 @@ function SurveyComposer() {
 
   // Suggested next actions — show once after the first assistant reply completes.
   const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
+  const [designOpen, setDesignOpen] = useState(false);
+
+  useEffect(() => {
+    if (!designOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setDesignOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [designOpen]);
+
   const lastMsg = messages[messages.length - 1];
   const readyWithReply =
     status === "ready" && messages.length >= 2 && lastMsg?.role === "assistant";
 
-  function scrollToDesign() {
-    if (typeof window === "undefined") return;
-    const el = document.getElementById("form-design-panel");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  function openDesign() {
+    setDesignOpen(true);
   }
 
   const suggestions: {
@@ -335,7 +345,7 @@ function SurveyComposer() {
       id: "design",
       label: "Customize design",
       icon: Palette,
-      onClick: scrollToDesign,
+      onClick: openDesign,
     },
     {
       id: "publish",
@@ -440,6 +450,15 @@ function SurveyComposer() {
         <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.15fr)]">
           {/* Chat pane */}
           <div className="relative flex min-h-0 flex-col border-r border-border">
+            {questions.length > 0 && !designOpen && (
+              <button
+                type="button"
+                onClick={openDesign}
+                className="absolute right-4 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs text-foreground shadow-sm backdrop-blur transition-colors hover:border-signal/40"
+              >
+                <Palette className="h-3.5 w-3.5 text-signal" /> Form Design
+              </button>
+            )}
             <Conversation className="flex-1">
               <ConversationContent className="mx-auto w-full max-w-[640px] px-6 pb-40 pt-8">
                 {messages.length === 0 ? (
@@ -553,6 +572,47 @@ function SurveyComposer() {
                 </div>
               </div>
             </div>
+            <AnimatePresence>
+              {designOpen && (
+                <>
+                  <motion.div
+                    key="design-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute inset-0 z-30 bg-background/60 backdrop-blur-sm"
+                    onClick={() => setDesignOpen(false)}
+                  />
+                  <motion.div
+                    key="design-panel"
+                    initial={{ x: "-100%" }}
+                    animate={{ x: 0 }}
+                    exit={{ x: "-100%" }}
+                    transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
+                    className="absolute inset-0 z-40 flex flex-col bg-background shadow-2xl"
+                  >
+                    <div className="flex items-center justify-between border-b border-border px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <Palette className="h-4 w-4 text-signal" />
+                        <span className="font-display text-sm font-medium">Form Design</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDesignOpen(false)}
+                        aria-label="Close form design"
+                        className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                      <ThemePanel theme={theme} onChange={handleThemeChange} />
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Preview pane */}
@@ -560,7 +620,6 @@ function SurveyComposer() {
             title={survey?.title ?? ""}
             slug={survey?.slug ?? null}
             theme={theme}
-            onThemeChange={handleThemeChange}
             welcome={(survey?.welcome_screen ?? null) as WelcomeShape | null}
             thanks={(survey?.thank_you_screen ?? null) as ThanksShape | null}
             description={survey?.description ?? null}
