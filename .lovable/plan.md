@@ -1,45 +1,44 @@
-## Add global light/dark mode
+# Inline editing inside the survey preview
 
-Add a whole-app theme toggle (light / dark / system) that swaps every surface — sidebar, main panels, cards, and inputs — consistently.
+Goal: on the Build tab, let users click directly on the question in the center "Live preview" panel to fix wording or add/remove choices — like typing in a Word doc — instead of only editing via the right-hand Inspector.
 
-### What the user sees
+## Scope
+Frontend only. No schema, server function, or business-logic changes. Reuses the existing `updateQuestion` mutation (`mUpdateQ`) already wired in `surveys.$id.edit.tsx`.
 
-- A small sun/moon toggle in the sidebar footer (next to the sign-out button), with a right-click / long-press menu for Light · Dark · System.
-- Clicking it instantly switches the entire app between:
-  - **Dark** (current look): deep ink canvas, ivory text, coral signal accent.
-  - **Light**: warm ivory canvas, deep ink text, same coral signal accent.
-- Choice persists across reloads (localStorage) and defaults to the OS setting on first visit.
-- No flash of wrong theme on load.
-- Sidebar stops being hardcoded light — it follows the active theme (ivory surface in light mode, ink surface in dark mode).
+## What becomes editable in the preview
+For the currently selected question in `QuestionPreview`:
+1. **Title** — click to edit inline (contentEditable-style single-line input styled to match the h2).
+2. **Description** — click to edit; empty state shows a muted "Add description…" affordance that turns into a real field on focus.
+3. **Choice options** (single_choice, multi_choice) — click any option label to rename; a trailing "＋ Add option" row appends a new option; a small × on hover removes one.
+4. **Scale min/max labels** — click the "Low"/"High" captions under the scale to rename.
+5. **Yes / No**, **rating**, **NPS**, **number**, **short/long text**, **email** — title + description editing only (no per-answer content to edit).
 
-### Technical approach
+Non-goals: changing question `type`, `required`, or numeric `min/max` bounds — those stay in the Inspector. Options for rating/NPS/scale scale numbers stay in Inspector.
 
-1. **Tokens** — `src/styles.css`
-   - Move current `:root` values into a shared block, then define real light-mode values under `:root` (default) and dark-mode values under `.dark`. Every semantic token (`--background`, `--foreground`, `--card`, `--border`, `--muted`, `--sidebar*`, `--signal`, etc.) gets a value in both modes. `--signal` / `--signal-foreground` stay the same coral in both.
-   - Keep the existing `@custom-variant dark` and `@theme inline` mapping — no changes to Tailwind wiring.
+## UX behavior
+- Hovering an editable area shows a subtle background tint so users discover clickability.
+- Click → field becomes an input/textarea seeded with current value, autofocused, text selected.
+- Commit on **Enter** (title, option, label) or **blur**. **Shift+Enter** adds a newline in description. **Escape** cancels.
+- Empty title on commit reverts to previous value (titles can't be blank).
+- Deleting an option requires ≥1 remaining option.
+- Save path: same `mUpdateQ.mutate({ id, title | description | config })` used by the Inspector, so autosave, toasts, and query invalidation all work unchanged.
+- Optimistic UI: local state updates immediately; on server error, revert and toast.
 
-2. **Theme provider** — new `src/components/theme-provider.tsx`
-   - Small React context storing `theme: "light" | "dark" | "system"` and resolved `mode: "light" | "dark"`.
-   - Applies/removes `.dark` on `document.documentElement`, persists to `localStorage("insightform-theme")`, listens to `matchMedia("(prefers-color-scheme: dark)")` when in system mode.
-   - Mounted once in `src/routes/__root.tsx` inside `RootComponent`.
+## Files touched
+1. **`src/components/QuestionPreview.tsx`** — add an optional `editable` mode plus `onEditTitle`, `onEditDescription`, `onEditConfig` callbacks. When `editable`, render the title/description/options/labels through small internal `<InlineText>` and `<EditableOption>` helpers instead of static text. When not `editable`, behavior is unchanged (keeps the public respondent view in `s.$slug.tsx` untouched).
+2. **`src/routes/_authenticated/surveys.$id.edit.tsx`** — in the Build tab's `<QuestionPreview>`, pass `editable`, and wire the three callbacks to `mUpdateQ.mutate({ id: selected.id, ... })`. Do not pass `editable` on the Design/Preview tabs or the public `s.$slug.tsx` page.
+3. No new files.
 
-3. **No-flash script** — `src/routes/__root.tsx`
-   - Inject a tiny inline script in `RootShell` `<head>` that reads localStorage + `prefers-color-scheme` and sets `.dark` on `<html>` before React hydrates.
-   - Update `<Toaster theme=...>` to follow resolved mode.
+## Technical notes
+- Use plain `<input>` / `<textarea>` (not `contentEditable`) — simpler, avoids sanitization, matches the app's existing input patterns.
+- `<InlineText>` internally toggles between a styled display span and an input; height/width are matched via the same Tailwind classes to prevent layout shift.
+- Options editor keeps array immutability: on rename, replace by index; on add, append `"Option N+1"`; on delete, filter by index; then call `onEditConfig({ options: next })`.
+- Debounce is not needed — commits happen on blur/Enter, not per keystroke, so no spam to the server.
+- Keep the existing right-hand Inspector fully functional; both edit paths write through `updateQuestion` and invalidate `["survey", id]`, so they stay in sync.
 
-4. **Toggle UI** — new `src/components/ThemeToggle.tsx`
-   - Sun/moon icon button used in the sidebar footer; dropdown for Light / Dark / System.
-
-5. **Sidebar** — `src/components/AppShell.tsx`
-   - Remove the hardcoded `oklch(...)` inline styles in `Sidebar`, `WorkspaceSelector`, `ActionCard`.
-   - Replace `--sb-*` locals with the existing semantic `--sidebar*` tokens (or plain `--card` / `--muted-foreground` / `--border`), so the sidebar automatically adapts.
-   - Add `<ThemeToggle />` to the footer row and the mobile top bar.
-
-6. **Survey theme preview isolation**
-   - `BrandProfileCard`'s live preview and any survey render (`s.$slug.tsx`) already apply their own inline theme via `themeStyle` / `backgroundClass` — those keep using the survey's own colors regardless of app theme (a survey is always rendered in its own brand).
-
-### Out of scope
-
-- Per-user server-side persistence (localStorage only).
-- Changing any survey/brand colors — the workspace brand profile stays independent.
-- New color palette design; light mode uses inverted versions of the existing ink/ivory tokens with the same coral signal.
+## Verification
+- Type into the title in the preview → blur → title updates in the left question list and persists on reload.
+- Rename an option in a single_choice question in the preview → the Inspector's options list shows the same value.
+- Add and delete options from the preview; confirm min-1-option guard.
+- Public respondent page (`/s/:slug`) still renders read-only (no edit affordances).
+- `tsgo --noEmit` clean.
