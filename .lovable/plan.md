@@ -1,44 +1,47 @@
-# Inline editing inside the survey preview
+# Restructure the Compose page: Form Design as a slide-over
 
-Goal: on the Build tab, let users click directly on the question in the center "Live preview" panel to fix wording or add/remove choices — like typing in a Word doc — instead of only editing via the right-hand Inspector.
+## Problem with today's flow
+On `/surveys/:id` (Compose), the right pane stacks two things:
+1. The `ThemePanel` (Form Design controls) at the top
+2. The browser-frame form preview below it
+
+That means Form Design is always visible, competes with the preview, and pushes the preview down. It has no clear entry point tied to the prompting flow.
+
+## New flow
+1. User prompts the form in the chat (left pane) — unchanged.
+2. Once the survey has at least one question (i.e. the agent has replied and built something), a small **"Form Design"** pill button appears anchored to the chat pane (top-right of the chat column, just under the header).
+3. Clicking the pill slides a **Form Design panel** over the chat/prompt box from the left side (covers only the left column, not the preview). The right pane keeps showing the live form preview so the user sees their design changes reflected instantly.
+4. The slide-over has a close ("×") button and closes on Escape, returning to the chat.
+5. The right pane no longer contains `ThemePanel` — only the browser-frame preview, tabs, and design-check strip.
 
 ## Scope
-Frontend only. No schema, server function, or business-logic changes. Reuses the existing `updateQuestion` mutation (`mUpdateQ`) already wired in `surveys.$id.edit.tsx`.
-
-## What becomes editable in the preview
-For the currently selected question in `QuestionPreview`:
-1. **Title** — click to edit inline (contentEditable-style single-line input styled to match the h2).
-2. **Description** — click to edit; empty state shows a muted "Add description…" affordance that turns into a real field on focus.
-3. **Choice options** (single_choice, multi_choice) — click any option label to rename; a trailing "＋ Add option" row appends a new option; a small × on hover removes one.
-4. **Scale min/max labels** — click the "Low"/"High" captions under the scale to rename.
-5. **Yes / No**, **rating**, **NPS**, **number**, **short/long text**, **email** — title + description editing only (no per-answer content to edit).
-
-Non-goals: changing question `type`, `required`, or numeric `min/max` bounds — those stay in the Inspector. Options for rating/NPS/scale scale numbers stay in Inspector.
-
-## UX behavior
-- Hovering an editable area shows a subtle background tint so users discover clickability.
-- Click → field becomes an input/textarea seeded with current value, autofocused, text selected.
-- Commit on **Enter** (title, option, label) or **blur**. **Shift+Enter** adds a newline in description. **Escape** cancels.
-- Empty title on commit reverts to previous value (titles can't be blank).
-- Deleting an option requires ≥1 remaining option.
-- Save path: same `mUpdateQ.mutate({ id, title | description | config })` used by the Inspector, so autosave, toasts, and query invalidation all work unchanged.
-- Optimistic UI: local state updates immediately; on server error, revert and toast.
+Frontend only. Reuses the existing `ThemePanel`, `handleThemeChange`, and theme state in `surveys.$id.tsx`. No schema, server function, or edit-page (`surveys.$id.edit.tsx`) changes. The Build-tab restructure the user asked about last turn stays untouched.
 
 ## Files touched
-1. **`src/components/QuestionPreview.tsx`** — add an optional `editable` mode plus `onEditTitle`, `onEditDescription`, `onEditConfig` callbacks. When `editable`, render the title/description/options/labels through small internal `<InlineText>` and `<EditableOption>` helpers instead of static text. When not `editable`, behavior is unchanged (keeps the public respondent view in `s.$slug.tsx` untouched).
-2. **`src/routes/_authenticated/surveys.$id.edit.tsx`** — in the Build tab's `<QuestionPreview>`, pass `editable`, and wire the three callbacks to `mUpdateQ.mutate({ id: selected.id, ... })`. Do not pass `editable` on the Design/Preview tabs or the public `s.$slug.tsx` page.
-3. No new files.
+1. **`src/routes/_authenticated/surveys.$id.tsx`**
+   - Add `const [designOpen, setDesignOpen] = useState(false)`.
+   - In the chat pane (`<div className="relative flex min-h-0 flex-col border-r border-border">`):
+     - Render a **pill button** absolutely positioned top-right (`Palette` icon + "Form Design") when `questions.length > 0`. Clicking sets `designOpen = true`.
+     - Render a sibling slide-over panel inside the same relative container: full-height, left-anchored, `translate-x` transition (motion/react `motion.div` with `initial={{ x: "-100%" }} animate={{ x: 0 }}`). Contains a header row with title + close button, then `<ThemePanel theme={theme} onChange={handleThemeChange} />` in a scrollable body.
+     - Escape key + backdrop click close it.
+     - Keep the existing "Customize design" suggestion pill; update `scrollToDesign()` → `openDesign()` so it opens the slide-over instead of scrolling.
+   - Remove the `<div id="form-design-panel"><ThemePanel …/></div>` block from `PreviewPane` so Form Design lives only in the slide-over.
+   - Drop `theme`/`onThemeChange` from `PreviewPane` props (dead after removal) and delete unused imports in that component (`ThemePanel` import stays in the parent).
+
+2. No new files, no route changes.
 
 ## Technical notes
-- Use plain `<input>` / `<textarea>` (not `contentEditable`) — simpler, avoids sanitization, matches the app's existing input patterns.
-- `<InlineText>` internally toggles between a styled display span and an input; height/width are matched via the same Tailwind classes to prevent layout shift.
-- Options editor keeps array immutability: on rename, replace by index; on add, append `"Option N+1"`; on delete, filter by index; then call `onEditConfig({ options: next })`.
-- Debounce is not needed — commits happen on blur/Enter, not per keystroke, so no spam to the server.
-- Keep the existing right-hand Inspector fully functional; both edit paths write through `updateQuestion` and invalidate `["survey", id]`, so they stay in sync.
+- Slide-over is scoped to the left column only (`absolute inset-0 z-30` inside the already-`relative` chat pane container), so the right preview stays fully interactive and visible.
+- Use `motion.div` with `AnimatePresence` for the slide + fade backdrop — matches the app's existing motion usage.
+- Backdrop is a subtle `bg-background/60 backdrop-blur-sm` inside the left column only.
+- Escape handler mounted via a `useEffect` guarded by `designOpen`.
+- Pill button styling matches existing header pills: `rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs` with a `Palette` icon.
 
 ## Verification
-- Type into the title in the preview → blur → title updates in the left question list and persists on reload.
-- Rename an option in a single_choice question in the preview → the Inspector's options list shows the same value.
-- Add and delete options from the preview; confirm min-1-option guard.
-- Public respondent page (`/s/:slug`) still renders read-only (no edit affordances).
+- Fresh compose page: no Form Design pill and no ThemePanel visible; only chat + preview.
+- After the agent replies with at least one question: pill appears in the chat pane.
+- Click pill → panel slides in over the chat, preview stays visible and updates as sliders change.
+- Escape / × / backdrop → panel slides out, chat is restored with focus back on the textarea.
+- Suggested-action "Customize design" chip now opens the slide-over instead of scrolling.
+- Editor page (`/surveys/:id/edit`) Design tab is untouched.
 - `tsgo --noEmit` clean.
