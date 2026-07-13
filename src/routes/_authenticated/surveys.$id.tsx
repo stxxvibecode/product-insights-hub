@@ -648,6 +648,7 @@ function SurveyComposer() {
               required: q.required,
               config: (q.config ?? {}) as Record<string, unknown>,
             }))}
+            onSelectText={(focus) => openDesign({ focus })}
           />
         </div>
       </div>
