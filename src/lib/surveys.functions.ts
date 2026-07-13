@@ -118,13 +118,18 @@ export const updateSurvey = createServerFn({ method: "POST" })
           status: z.enum(["draft", "live", "closed"]).optional(),
           welcome_screen: z
             .object({
-              title: z.string().max(120),
-              description: z.string().max(500),
-              button: z.string().max(40),
+              title: z.string().max(120).optional(),
+              description: z.string().max(500).optional(),
+              button: z.string().max(40).optional(),
             })
+            .nullable()
             .optional(),
           thank_you_screen: z
-            .object({ title: z.string().max(120), description: z.string().max(500) })
+            .object({
+              title: z.string().max(120).optional(),
+              description: z.string().max(500).optional(),
+            })
+            .nullable()
             .optional(),
           theme: z
             .object({
@@ -136,6 +141,11 @@ export const updateSurvey = createServerFn({ method: "POST" })
               background: z.enum(["solid", "gradient", "dots"]).optional(),
               font: z.enum(["sans", "serif", "mono", "soft"]).optional(),
               radius: z.enum(["sharp", "soft", "pill"]).optional(),
+              text_scale: z.enum(["s", "m", "l"]).optional(),
+              heading_size: z.enum(["sm", "md", "lg", "xl"]).optional(),
+              body_size: z.enum(["sm", "md", "lg"]).optional(),
+              button_size: z.enum(["sm", "md", "lg"]).optional(),
+              density: z.enum(["compact", "comfortable", "spacious"]).optional(),
             })
             .optional(),
           brand_overrides: z.record(z.string(), z.unknown()).optional(),
