@@ -287,18 +287,6 @@ function SurveysIndex() {
     return `${text}\n\nContext:\n- ${parts.join("\n- ")}`;
   }
 
-  // Animated build steps while creating (with active chip)
-  const [buildStep, setBuildStep] = useState(0);
-  useEffect(() => {
-    if (!create.isPending || !activeStarter) return;
-    setBuildStep(0);
-    const t = setInterval(() => {
-      setBuildStep((s) => Math.min(s + 1, BUILD_STEPS.length - 1));
-    }, 700);
-    return () => clearInterval(t);
-  }, [create.isPending, activeStarter]);
-
-  const showingBuild = create.isPending && activeStarter !== null;
   const composerKey = activeStarterId ?? "free";
   const composerSeed = activeStarter?.prompt ?? "";
   const ctaLabel = activeStarter
