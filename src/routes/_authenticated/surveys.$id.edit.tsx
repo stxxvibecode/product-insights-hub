@@ -39,6 +39,8 @@ import {
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { QuestionPreview } from "@/components/QuestionPreview";
+import type { TextFocus } from "@/components/QuestionPreview";
+import { FormDesignPanel, FormDesignPill } from "@/components/FormDesignPanel";
 import { getSurvey, updateSurvey, deleteSurvey } from "@/lib/surveys.functions";
 import {
   addQuestion,
@@ -93,6 +95,15 @@ function SurveyBuilder() {
     title: "",
     description: "",
   });
+  const [designOpen, setDesignOpen] = useState(false);
+  const [designFocus, setDesignFocus] = useState<TextFocus | null>(null);
+  const [designDefaultTab, setDesignDefaultTab] = useState<"content" | "size" | "style">("content");
+
+  function openDesign(opts?: { focus?: TextFocus; tab?: "content" | "size" | "style" }) {
+    setDesignFocus(opts?.focus ?? null);
+    setDesignDefaultTab(opts?.tab ?? (opts?.focus ? "content" : "content"));
+    setDesignOpen(true);
+  }
 
   useEffect(() => {
     if (data?.survey)
@@ -190,6 +201,8 @@ function SurveyBuilder() {
   });
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [editDraftOpen, setEditDraftOpen] = useState(false);
   function onDragEnd(e: DragEndEvent) {
     if (!data) return;
     const { active, over } = e;
@@ -226,8 +239,6 @@ function SurveyBuilder() {
   const isLive = data.survey.status === "live";
   const isEditDraft = Boolean(data.survey.is_edit_draft);
   const parentSurveyId = data.survey.parent_survey_id as string | null;
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [editDraftOpen, setEditDraftOpen] = useState(false);
 
   return (
     <AppShell>
@@ -362,9 +373,12 @@ function SurveyBuilder() {
 
           {/* Live preview */}
           <section
-            className={`col-span-12 min-h-[calc(100vh-130px)] border-r border-border bg-card/30 px-6 py-10 lg:col-span-6 ${backgroundClass(theme)}`}
+            className={`relative col-span-12 min-h-[calc(100vh-130px)] border-r border-border bg-card/30 px-6 py-10 lg:col-span-6 ${backgroundClass(theme)}`}
             style={themeStyle(theme)}
           >
+            <div className="absolute right-4 top-4 z-10">
+              <FormDesignPill onClick={() => openDesign({ tab: "content" })} />
+            </div>
             <div className="mx-auto max-w-xl">
               <div className="mb-4 text-xs uppercase tracking-[0.14em] text-muted-foreground">
                 Live preview
@@ -384,13 +398,8 @@ function SurveyBuilder() {
                     config={(selected.config ?? {}) as never}
                     value={undefined}
                     onChange={() => {}}
-                    editable
-                    onEditTitle={(title) => mUpdateQ.mutate({ id: selected.id, title })}
-                    onEditDescription={(description) => mUpdateQ.mutate({ id: selected.id, description })}
-                    onEditConfig={(patch) => {
-                      const current = (selected.config ?? {}) as Record<string, unknown>;
-                      mUpdateQ.mutate({ id: selected.id, config: { ...current, ...patch } });
-                    }}
+                    questionId={selected.id}
+                    onSelectText={(focus) => openDesign({ focus })}
                   />
                 </motion.div>
               ) : (
@@ -399,6 +408,39 @@ function SurveyBuilder() {
                 </div>
               )}
             </div>
+            <FormDesignPanel
+              open={designOpen}
+              onClose={() => setDesignOpen(false)}
+              theme={theme}
+              onThemeChange={handleThemeChange}
+              defaultTab={designDefaultTab}
+              focus={designFocus}
+              content={{
+                survey: {
+                  id: data.survey.id,
+                  title: data.survey.title,
+                  description: data.survey.description ?? null,
+                  welcome_screen: (data.survey.welcome_screen ?? null) as {
+                    title?: string;
+                    description?: string;
+                    button?: string;
+                  } | null,
+                  thank_you_screen: (data.survey.thank_you_screen ?? null) as {
+                    title?: string;
+                    description?: string;
+                  } | null,
+                },
+                questions: data.questions.map((q) => ({
+                  id: q.id,
+                  type: q.type,
+                  title: q.title,
+                  description: q.description,
+                  config: (q.config ?? {}) as Record<string, unknown>,
+                })),
+                onUpdateSurvey: (patch) => mUpdateSurvey.mutate({ id, ...patch }),
+                onUpdateQuestion: (qid, patch) => mUpdateQ.mutate({ id: qid, ...patch }),
+              }}
+            />
           </section>
 
           {/* Inspector */}
@@ -592,8 +634,6 @@ function Inspector({
   }) => void;
   onDelete: () => void;
 }) {
-  const [title, setTitle] = useState(question.title);
-  const [description, setDescription] = useState(question.description ?? "");
   const cfg = (question.config ?? {}) as {
     options?: string[];
     max?: number;
@@ -601,11 +641,6 @@ function Inspector({
     minLabel?: string;
     maxLabel?: string;
   };
-
-  useEffect(() => {
-    setTitle(question.title);
-    setDescription(question.description ?? "");
-  }, [question.id]);
 
   return (
     <div className="space-y-5">
@@ -620,29 +655,11 @@ function Inspector({
         </button>
       </div>
 
-      <Field label="Question">
-        <textarea
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => title !== question.title && onChange({ title })}
-          rows={2}
-          className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60 focus:ring-2 focus:ring-signal/20"
-        />
-      </Field>
-
-      <Field label="Description">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={() =>
-            (description || "") !== (question.description || "") &&
-            onChange({ description: description || null })
-          }
-          rows={2}
-          placeholder="Optional helper text"
-          className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60 focus:ring-2 focus:ring-signal/20"
-        />
-      </Field>
+      <div className="rounded-lg border border-dashed border-border bg-card/40 px-3 py-2 text-[11px] text-muted-foreground">
+        Edit question wording, description, and options in{" "}
+        <span className="text-foreground">Form Design</span> — click the pill above the preview or
+        click any text on the canvas.
+      </div>
 
       <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
         <span>Required</span>
@@ -654,12 +671,6 @@ function Inspector({
         />
       </label>
 
-      {(question.type === "single_choice" || question.type === "multi_choice") && (
-        <OptionEditor
-          options={cfg.options ?? []}
-          onChange={(options) => onChange({ config: { ...cfg, options } })}
-        />
-      )}
       {question.type === "rating" && (
         <Field label="Max stars">
           <input
@@ -678,17 +689,19 @@ function Inspector({
       )}
       {question.type === "scale" && (
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Min label">
+          <Field label="Min value">
             <input
-              value={cfg.minLabel ?? ""}
-              onChange={(e) => onChange({ config: { ...cfg, minLabel: e.target.value } })}
+              type="number"
+              value={cfg.min ?? 1}
+              onChange={(e) => onChange({ config: { ...cfg, min: Number(e.target.value) } })}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60"
             />
           </Field>
-          <Field label="Max label">
+          <Field label="Max value">
             <input
-              value={cfg.maxLabel ?? ""}
-              onChange={(e) => onChange({ config: { ...cfg, maxLabel: e.target.value } })}
+              type="number"
+              value={cfg.max ?? 7}
+              onChange={(e) => onChange({ config: { ...cfg, max: Number(e.target.value) } })}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-signal/60"
             />
           </Field>

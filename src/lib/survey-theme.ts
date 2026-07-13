@@ -6,6 +6,12 @@ export type SurveyTheme = {
   background?: "solid" | "gradient" | "dots";
   font?: "sans" | "serif" | "mono" | "soft";
   radius?: "sharp" | "soft" | "pill";
+  // Sizing controls (Canva-style).
+  text_scale?: "s" | "m" | "l";
+  heading_size?: "sm" | "md" | "lg" | "xl";
+  body_size?: "sm" | "md" | "lg";
+  button_size?: "sm" | "md" | "lg";
+  density?: "compact" | "comfortable" | "spacious";
   // Brand-aware fields (resolved from workspace brand profile + form overrides).
   brand_name?: string;
   product_description?: string;
@@ -87,6 +93,11 @@ export const DEFAULT_THEME: SurveyTheme = {
   background: "solid",
   font: "sans",
   radius: "soft",
+  text_scale: "m",
+  heading_size: "lg",
+  body_size: "md",
+  button_size: "md",
+  density: "comfortable",
 };
 
 const FONT_STACKS: Record<NonNullable<SurveyTheme["font"]>, string> = {
@@ -134,6 +145,33 @@ const RADIUS_VALUES: Record<NonNullable<SurveyTheme["radius"]>, string> = {
   pill: "1.5rem",
 };
 
+const TEXT_SCALE: Record<NonNullable<SurveyTheme["text_scale"]>, number> = {
+  s: 0.9,
+  m: 1,
+  l: 1.15,
+};
+const HEADING_REM: Record<NonNullable<SurveyTheme["heading_size"]>, number> = {
+  sm: 1.5,
+  md: 1.875,
+  lg: 2.25,
+  xl: 3,
+};
+const BODY_REM: Record<NonNullable<SurveyTheme["body_size"]>, number> = {
+  sm: 0.875,
+  md: 1,
+  lg: 1.125,
+};
+const BUTTON_REM: Record<NonNullable<SurveyTheme["button_size"]>, number> = {
+  sm: 0.8125,
+  md: 0.9375,
+  lg: 1.0625,
+};
+const DENSITY_GAP: Record<NonNullable<SurveyTheme["density"]>, number> = {
+  compact: 1.25,
+  comfortable: 2,
+  spacious: 2.75,
+};
+
 function hexToRgb(hex: string): [number, number, number] | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return null;
@@ -172,6 +210,11 @@ export function themeStyle(theme: SurveyTheme | null | undefined): CSSProperties
   const radiusKey = theme?.radius ?? radiusFromButtonStyle(t.button_style) ?? "soft";
   const font = FONT_STACKS[fontKey];
   const radius = RADIUS_VALUES[radiusKey];
+  const scale = TEXT_SCALE[t.text_scale ?? "m"];
+  const heading = HEADING_REM[t.heading_size ?? "lg"] * scale;
+  const body = BODY_REM[t.body_size ?? "md"] * scale;
+  const button = BUTTON_REM[t.button_size ?? "md"] * scale;
+  const gap = DENSITY_GAP[t.density ?? "comfortable"];
   const style = {
     // Override design tokens scoped to the themed subtree.
     "--signal": accent,
@@ -181,6 +224,10 @@ export function themeStyle(theme: SurveyTheme | null | undefined): CSSProperties
     "--t-accent": accent,
     "--t-accent-foreground": accentForeground,
     "--t-surface": preset.surface,
+    "--t-heading": `${heading.toFixed(3)}rem`,
+    "--t-body": `${body.toFixed(3)}rem`,
+    "--t-button": `${button.toFixed(3)}rem`,
+    "--t-gap": `${gap.toFixed(3)}rem`,
     fontFamily: font,
   } as CSSProperties & Record<string, string>;
   if (theme?.background_color) {
