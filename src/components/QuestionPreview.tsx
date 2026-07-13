@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Plus, X } from "lucide-react";
 import type { QuestionType } from "@/lib/question-types";
 
 type Cfg = {
@@ -11,6 +12,7 @@ type Cfg = {
 
 export function QuestionPreview({
   type, title, description, required, config, value, onChange, onSubmit,
+  editable, onEditTitle, onEditDescription, onEditConfig,
 }: {
   type: QuestionType;
   title: string;
@@ -20,18 +22,54 @@ export function QuestionPreview({
   value: unknown;
   onChange: (v: unknown) => void;
   onSubmit?: (overrideValue?: unknown) => void;
+  editable?: boolean;
+  onEditTitle?: (v: string) => void;
+  onEditDescription?: (v: string | null) => void;
+  onEditConfig?: (patch: Partial<Cfg>) => void;
 }) {
   const text = typeof value === "string" ? value : "";
   const num = typeof value === "number" ? value : null;
   const arr = Array.isArray(value) ? (value as string[]) : [];
 
+  const options = config.options ?? [];
+  function commitOptions(next: string[]) {
+    onEditConfig?.({ options: next });
+  }
+
   return (
     <div>
       <h2 className="font-display text-3xl font-semibold leading-tight tracking-tight text-balance md:text-4xl">
-        {title || "Untitled question"}
+        {editable ? (
+          <InlineEditable
+            value={title}
+            placeholder="Untitled question"
+            onCommit={(v) => {
+              const trimmed = v.trim();
+              if (trimmed && trimmed !== title) onEditTitle?.(trimmed);
+            }}
+            fullWidth
+          />
+        ) : (
+          title || "Untitled question"
+        )}
         {required && <span className="ml-1 text-signal">*</span>}
       </h2>
-      {description && <p className="mt-3 text-base text-muted-foreground text-pretty">{description}</p>}
+      {editable ? (
+        <div className="mt-3 text-base text-muted-foreground text-pretty">
+          <InlineEditable
+            value={description ?? ""}
+            placeholder="Add description…"
+            multiline
+            onCommit={(v) => {
+              const next = v.trim() ? v : null;
+              if ((next ?? "") !== (description ?? "")) onEditDescription?.(next);
+            }}
+            fullWidth
+          />
+        </div>
+      ) : description ? (
+        <p className="mt-3 text-base text-muted-foreground text-pretty">{description}</p>
+      ) : null}
 
       <div className="mt-8">
         {(type === "short_text" || type === "email") && (
@@ -80,22 +118,41 @@ export function QuestionPreview({
           </div>
         )}
         {type === "single_choice" && (
-          <ChoiceList
-            options={config.options ?? []}
-            selected={[text]}
-            onSelect={(opt) => { onChange(opt); onSubmit?.(opt); }}
-          />
+          editable ? (
+            <EditableChoiceList
+              options={options}
+              onRename={(i, v) => { const next = [...options]; next[i] = v; commitOptions(next); }}
+              onDelete={(i) => { if (options.length > 1) commitOptions(options.filter((_, idx) => idx !== i)); }}
+              onAdd={() => commitOptions([...options, `Option ${options.length + 1}`])}
+            />
+          ) : (
+            <ChoiceList
+              options={config.options ?? []}
+              selected={[text]}
+              onSelect={(opt) => { onChange(opt); onSubmit?.(opt); }}
+            />
+          )
         )}
         {type === "multi_choice" && (
-          <ChoiceList
-            multi
-            options={config.options ?? []}
-            selected={arr}
-            onSelect={(opt) => {
-              const next = arr.includes(opt) ? arr.filter((o) => o !== opt) : [...arr, opt];
-              onChange(next);
-            }}
-          />
+          editable ? (
+            <EditableChoiceList
+              multi
+              options={options}
+              onRename={(i, v) => { const next = [...options]; next[i] = v; commitOptions(next); }}
+              onDelete={(i) => { if (options.length > 1) commitOptions(options.filter((_, idx) => idx !== i)); }}
+              onAdd={() => commitOptions([...options, `Option ${options.length + 1}`])}
+            />
+          ) : (
+            <ChoiceList
+              multi
+              options={config.options ?? []}
+              selected={arr}
+              onSelect={(opt) => {
+                const next = arr.includes(opt) ? arr.filter((o) => o !== opt) : [...arr, opt];
+                onChange(next);
+              }}
+            />
+          )
         )}
         {type === "rating" && (
           <StarRow max={config.max ?? 5} value={num ?? 0} onChange={(n) => { onChange(n); }} />
@@ -107,13 +164,158 @@ export function QuestionPreview({
           <div>
             <NumberRow min={config.min ?? 1} max={config.max ?? 7} value={num} onChange={(n) => { onChange(n); onSubmit?.(n); }} />
             <div className="mt-3 flex justify-between text-xs text-muted-foreground">
-              <span>{config.minLabel ?? "Low"}</span>
-              <span>{config.maxLabel ?? "High"}</span>
+              {editable ? (
+                <InlineEditable
+                  value={config.minLabel ?? "Low"}
+                  placeholder="Low"
+                  onCommit={(v) => onEditConfig?.({ minLabel: v.trim() || "Low" })}
+                />
+              ) : (
+                <span>{config.minLabel ?? "Low"}</span>
+              )}
+              {editable ? (
+                <InlineEditable
+                  value={config.maxLabel ?? "High"}
+                  placeholder="High"
+                  onCommit={(v) => onEditConfig?.({ maxLabel: v.trim() || "High" })}
+                />
+              ) : (
+                <span>{config.maxLabel ?? "High"}</span>
+              )}
             </div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function InlineEditable({
+  value, placeholder, onCommit, multiline, fullWidth,
+}: {
+  value: string;
+  placeholder?: string;
+  onCommit: (v: string) => void;
+  multiline?: boolean;
+  fullWidth?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select?.();
+    }
+  }, [editing]);
+
+  if (!editing) {
+    return (
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={() => setEditing(true)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setEditing(true); } }}
+        className={`-mx-1 cursor-text rounded-md px-1 transition-colors hover:bg-foreground/5 ${fullWidth ? "block" : "inline-block"} ${!value ? "text-muted-foreground/60" : ""}`}
+      >
+        {value || placeholder || " "}
+      </span>
+    );
+  }
+
+  const commit = () => { setEditing(false); if (draft !== value) onCommit(draft); };
+  const cancel = () => { setDraft(value); setEditing(false); };
+
+  if (multiline) {
+    return (
+      <textarea
+        ref={(el) => { inputRef.current = el; }}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); cancel(); } }}
+        rows={2}
+        placeholder={placeholder}
+        className="-mx-1 block w-full resize-none rounded-md bg-foreground/5 px-1 outline-none ring-1 ring-signal/40"
+        style={{ font: "inherit", color: "inherit" }}
+      />
+    );
+  }
+  return (
+    <input
+      ref={(el) => { inputRef.current = el; }}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { e.preventDefault(); commit(); }
+        else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+      }}
+      placeholder={placeholder}
+      className={`-mx-1 rounded-md bg-foreground/5 px-1 outline-none ring-1 ring-signal/40 ${fullWidth ? "block w-full" : "inline-block"}`}
+      style={{ font: "inherit", color: "inherit", letterSpacing: "inherit" }}
+    />
+  );
+}
+
+function EditableChoiceList({
+  options, onRename, onDelete, onAdd, multi,
+}: {
+  options: string[];
+  onRename: (i: number, v: string) => void;
+  onDelete: (i: number) => void;
+  onAdd: () => void;
+  multi?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      {options.map((opt, i) => (
+        <div key={i} className="group flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3">
+          <span className={`grid h-6 w-6 shrink-0 place-items-center border border-border font-mono text-xs ${multi ? "rounded-md" : "rounded-full"}`}>
+            {String.fromCharCode(65 + i)}
+          </span>
+          <EditableOptionText value={opt} onCommit={(v) => onRename(i, v)} />
+          <button
+            type="button"
+            onClick={() => onDelete(i)}
+            disabled={options.length <= 1}
+            aria-label="Remove option"
+            className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex w-full items-center gap-2 rounded-xl border border-dashed border-border px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+      >
+        <Plus className="h-4 w-4" /> Add option
+      </button>
+    </div>
+  );
+}
+
+function EditableOptionText({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  return (
+    <input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const v = draft.trim();
+        if (!v) { setDraft(value); return; }
+        if (v !== value) onCommit(v);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+        else if (e.key === "Escape") { setDraft(value); (e.target as HTMLInputElement).blur(); }
+      }}
+      className="-mx-1 flex-1 rounded bg-transparent px-1 outline-none focus:bg-foreground/5"
+    />
   );
 }
 

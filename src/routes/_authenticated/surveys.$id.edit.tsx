@@ -384,6 +384,13 @@ function SurveyBuilder() {
                     config={(selected.config ?? {}) as never}
                     value={undefined}
                     onChange={() => {}}
+                    editable
+                    onEditTitle={(title) => mUpdateQ.mutate({ id: selected.id, title })}
+                    onEditDescription={(description) => mUpdateQ.mutate({ id: selected.id, description })}
+                    onEditConfig={(patch) => {
+                      const current = (selected.config ?? {}) as Record<string, unknown>;
+                      mUpdateQ.mutate({ id: selected.id, config: { ...current, ...patch } });
+                    }}
                   />
                 </motion.div>
               ) : (
