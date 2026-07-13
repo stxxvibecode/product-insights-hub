@@ -329,9 +329,7 @@ function SurveysIndex() {
           </div>
 
           <div className="mx-auto mt-8 w-full max-w-3xl">
-            {showingBuild ? (
-              <BuildingCard label={activeStarter!.label} step={buildStep} />
-            ) : (
+            <div style={{ viewTransitionName: "compose-prompt" }}>
               <PromptInputProvider key={composerKey} initialInput={composerSeed}>
                 <PromptInput
                   className="rounded-2xl border-border bg-card/80 shadow-[0_40px_100px_-40px_rgba(255,122,69,0.45)] backdrop-blur focus-within:border-signal/40 focus-within:ring-1 focus-within:ring-signal/30"
@@ -360,9 +358,9 @@ function SurveysIndex() {
                   </PromptInputFooter>
                 </PromptInput>
               </PromptInputProvider>
-            )}
+            </div>
 
-            {!showingBuild && activeStarter && (
+            {activeStarter && (
               <CustomizePanel
                 starter={activeStarter}
                 answers={answers}
@@ -371,8 +369,7 @@ function SurveysIndex() {
               />
             )}
 
-            {!showingBuild && (
-              <div className="mt-5">
+            <div className="mt-5">
                 <div className="text-center text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                   Start with a template
                 </div>
@@ -396,8 +393,7 @@ function SurveysIndex() {
                     );
                   })}
                 </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Live now */}
