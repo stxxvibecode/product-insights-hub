@@ -16,6 +16,7 @@ import {
 } from "@/lib/brand.functions";
 import { QuestionPreview, type TextFocus } from "@/components/QuestionPreview";
 import { FormDesignPanel, FormDesignPill } from "@/components/FormDesignPanel";
+import { PreviewSkeleton } from "@/components/PreviewSkeleton";
 import type { QuestionType } from "@/lib/question-types";
 import { supabase } from "@/integrations/supabase/client";
 import { themeStyle, backgroundClass, DEFAULT_THEME, type SurveyTheme } from "@/lib/survey-theme";
