@@ -197,6 +197,7 @@ function titleFromPrompt(prompt: string) {
 
 function SurveysIndex() {
   const navigate = useNavigate();
+  const router = useRouter();
   const qc = useQueryClient();
   const fetchList = useServerFn(listSurveys);
   const createFn = useServerFn(createSurvey);
@@ -233,6 +234,8 @@ function SurveysIndex() {
       createFn({ data: { title: titleFromPrompt(prompt) } }).then((s) => ({ s, prompt })),
     onSuccess: ({ s, prompt }) => {
       qc.invalidateQueries({ queryKey: ["surveys"] });
+      // Warm destination route JS + loader before navigating so first paint is immediate.
+      void router.preloadRoute({ to: "/surveys/$id", params: { id: s.id } });
       navigate({
         to: "/surveys/$id",
         params: { id: s.id },
