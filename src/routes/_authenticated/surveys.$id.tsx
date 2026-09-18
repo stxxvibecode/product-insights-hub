@@ -291,6 +291,37 @@ function SurveyComposer() {
   const readyWithReply =
     status === "ready" && messages.length >= 2 && lastMsg?.role === "assistant";
 
+  // ---- Build phases: optimistic paint → streaming → preview ready ----------
+  const toolActivity = useMemo(
+    () => readToolActivity(messages.flatMap((m) => m.parts as unknown as { type?: string; state?: string }[])),
+    [messages],
+  );
+  const toolsCompleted = toolActivity.completed;
+  const stepLabel = stepLabelFor(toolActivity.activeTool);
+
+  // Once the preview has rendered real questions we never go back to skeletons.
+  const reachedPreviewRef = useRef(false);
+  if (questions.length > 0) reachedPreviewRef.current = true;
+  const previewReady = reachedPreviewRef.current;
+
+  const buildPhase: BuildPhase = previewReady
+    ? "ready"
+    : status === "streaming" || toolActivity.activeTool || toolsCompleted > 0
+      ? "streaming"
+      : "optimistic";
+
+  // Flash a short "Preview ready" confirmation the first time questions land.
+  const [showReadyPill, setShowReadyPill] = useState(false);
+  const readyPillShownRef = useRef(false);
+  useEffect(() => {
+    if (!previewReady || readyPillShownRef.current) return;
+    readyPillShownRef.current = true;
+    setShowReadyPill(true);
+    const t = setTimeout(() => setShowReadyPill(false), 2200);
+    return () => clearTimeout(t);
+  }, [previewReady]);
+
+
   function openDesign(opts?: { focus?: TextFocus; tab?: "content" | "size" | "style" }) {
     setDesignFocus(opts?.focus ?? null);
     setDesignDefaultTab(opts?.tab ?? (opts?.focus ? "content" : "style"));
