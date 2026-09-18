@@ -472,18 +472,19 @@ function SurveyComposer() {
               <ConversationContent className="mx-auto w-full max-w-[640px] px-6 pb-40 pt-8">
                 {messages.length === 0 && seedPrompt ? (
                   // Optimistic first paint during the Compose→Build handoff:
-                  // show the user's prompt + a shimmer immediately, before the
-                  // seed-send effect fires. Prevents an EmptyChat flash.
+                  // show the user's prompt + a status banner immediately, before
+                  // the seed-send effect fires. Prevents an EmptyChat flash.
                   <div className="space-y-6">
                     <Message from="user">
                       <MessageContent className="ml-auto max-w-[85%] rounded-2xl bg-card text-foreground">
                         <MessageResponse isAnimating={false}>{seedPrompt}</MessageResponse>
                       </MessageContent>
                     </Message>
-                    <div className="flex items-center gap-2.5 pl-0.5 text-sm text-muted-foreground">
-                      <img src={agentMark} alt="" className="h-6 w-6 rounded-md" />
-                      <Shimmer>Composing…</Shimmer>
-                    </div>
+                    <BuildStatusBanner
+                      phase="optimistic"
+                      stepLabel={stepLabel}
+                      completed={toolsCompleted}
+                    />
                   </div>
                 ) : messages.length === 0 ? (
                   <EmptyChat onPick={(t) => sendMessage({ text: t })} />
@@ -499,11 +500,12 @@ function SurveyComposer() {
                         }
                       />
                     ))}
-                    {status === "submitted" && (
-                      <div className="flex items-center gap-2.5 pl-0.5 text-sm text-muted-foreground">
-                        <img src={agentMark} alt="" className="h-6 w-6 rounded-md" />
-                        <Shimmer>Composing…</Shimmer>
-                      </div>
+                    {buildPhase !== "ready" && (
+                      <BuildStatusBanner
+                        phase={buildPhase}
+                        stepLabel={stepLabel}
+                        completed={toolsCompleted}
+                      />
                     )}
                     {error && (
                       <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -512,6 +514,7 @@ function SurveyComposer() {
                     )}
                   </div>
                 )}
+
               </ConversationContent>
               <ConversationScrollButton />
             </Conversation>
