@@ -65,9 +65,9 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/surveys/$id")({
   head: () => ({ meta: [{ title: "Compose — Insightform" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
-    prompt: typeof s.prompt === "string" ? s.prompt : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { prompt?: string } =>
+    typeof s.prompt === "string" ? { prompt: s.prompt } : {},
+
   component: SurveyComposer,
 });
 
