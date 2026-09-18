@@ -721,7 +721,9 @@ function SurveyComposer() {
             }))}
             onSelectText={(focus) => openDesign({ focus })}
             />
+            </motion.div>
           )}
+
         </div>
       </div>
     </AppShell>
