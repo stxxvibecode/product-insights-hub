@@ -558,6 +558,23 @@ function SurveyComposer() {
               <div className="h-16 bg-gradient-to-t from-background via-background/85 to-transparent" />
               <div className="bg-background pb-5 pt-1">
                 <div className="pointer-events-auto mx-auto w-full max-w-[640px] px-6">
+                  <AnimatePresence>
+                    {showReadyPill && (
+                      <motion.div
+                        key="preview-ready"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+                        className="mb-2 flex justify-center"
+                      >
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1 text-[11px] text-emerald-300">
+                          <Check className="h-3 w-3" /> Preview ready
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {showSuggestions && (
                     <div className="mb-2 rounded-2xl border border-border bg-card/70 px-3 py-2 backdrop-blur">
                       <div className="mb-1.5 flex items-center justify-between">
