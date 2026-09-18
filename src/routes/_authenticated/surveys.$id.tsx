@@ -678,10 +678,21 @@ function SurveyComposer() {
           </div>
 
           {/* Preview pane */}
-          {questions.length === 0 ? (
-            <PreviewSkeleton theme={theme} />
+          {!previewReady ? (
+            <PreviewSkeleton
+              theme={theme}
+              phase={buildPhase === "streaming" ? "active" : "idle"}
+              stepLabel={stepLabel}
+            />
           ) : (
+            <motion.div
+              className="flex min-h-0 flex-col"
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+            >
             <PreviewPane
+
             title={survey?.title ?? ""}
             slug={survey?.slug ?? null}
             theme={theme}
