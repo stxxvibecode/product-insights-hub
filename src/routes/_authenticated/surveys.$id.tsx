@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { AppShell } from "@/components/AppShell";
 import { getSurvey, updateSurvey } from "@/lib/surveys.functions";
 import { updateQuestion } from "@/lib/questions.functions";
@@ -17,6 +17,9 @@ import {
 import { QuestionPreview, type TextFocus } from "@/components/QuestionPreview";
 import { FormDesignPanel, FormDesignPill } from "@/components/FormDesignPanel";
 import { PreviewSkeleton } from "@/components/PreviewSkeleton";
+import { BuildStatusBanner } from "@/components/BuildStatusBanner";
+import { readToolActivity, stepLabelFor, type BuildPhase } from "@/lib/build-phases";
+
 import type { QuestionType } from "@/lib/question-types";
 import { supabase } from "@/integrations/supabase/client";
 import { themeStyle, backgroundClass, DEFAULT_THEME, type SurveyTheme } from "@/lib/survey-theme";
@@ -62,9 +65,9 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/surveys/$id")({
   head: () => ({ meta: [{ title: "Compose — Insightform" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
-    prompt: typeof s.prompt === "string" ? s.prompt : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { prompt?: string } =>
+    typeof s.prompt === "string" ? { prompt: s.prompt } : {},
+
   component: SurveyComposer,
 });
 
@@ -291,6 +294,37 @@ function SurveyComposer() {
   const readyWithReply =
     status === "ready" && messages.length >= 2 && lastMsg?.role === "assistant";
 
+  // ---- Build phases: optimistic paint → streaming → preview ready ----------
+  const toolActivity = useMemo(
+    () => readToolActivity(messages.flatMap((m) => m.parts as unknown as { type?: string; state?: string }[])),
+    [messages],
+  );
+  const toolsCompleted = toolActivity.completed;
+  const stepLabel = stepLabelFor(toolActivity.activeTool);
+
+  // Once the preview has rendered real questions we never go back to skeletons.
+  const reachedPreviewRef = useRef(false);
+  if (questions.length > 0) reachedPreviewRef.current = true;
+  const previewReady = reachedPreviewRef.current;
+
+  const buildPhase: BuildPhase = previewReady
+    ? "ready"
+    : status === "streaming" || toolActivity.activeTool || toolsCompleted > 0
+      ? "streaming"
+      : "optimistic";
+
+  // Flash a short "Preview ready" confirmation the first time questions land.
+  const [showReadyPill, setShowReadyPill] = useState(false);
+  const readyPillShownRef = useRef(false);
+  useEffect(() => {
+    if (!previewReady || readyPillShownRef.current) return;
+    readyPillShownRef.current = true;
+    setShowReadyPill(true);
+    const t = setTimeout(() => setShowReadyPill(false), 2200);
+    return () => clearTimeout(t);
+  }, [previewReady]);
+
+
   function openDesign(opts?: { focus?: TextFocus; tab?: "content" | "size" | "style" }) {
     setDesignFocus(opts?.focus ?? null);
     setDesignDefaultTab(opts?.tab ?? (opts?.focus ? "content" : "style"));
@@ -472,18 +506,19 @@ function SurveyComposer() {
               <ConversationContent className="mx-auto w-full max-w-[640px] px-6 pb-40 pt-8">
                 {messages.length === 0 && seedPrompt ? (
                   // Optimistic first paint during the Compose→Build handoff:
-                  // show the user's prompt + a shimmer immediately, before the
-                  // seed-send effect fires. Prevents an EmptyChat flash.
+                  // show the user's prompt + a status banner immediately, before
+                  // the seed-send effect fires. Prevents an EmptyChat flash.
                   <div className="space-y-6">
                     <Message from="user">
                       <MessageContent className="ml-auto max-w-[85%] rounded-2xl bg-card text-foreground">
                         <MessageResponse isAnimating={false}>{seedPrompt}</MessageResponse>
                       </MessageContent>
                     </Message>
-                    <div className="flex items-center gap-2.5 pl-0.5 text-sm text-muted-foreground">
-                      <img src={agentMark} alt="" className="h-6 w-6 rounded-md" />
-                      <Shimmer>Composing…</Shimmer>
-                    </div>
+                    <BuildStatusBanner
+                      phase="optimistic"
+                      stepLabel={stepLabel}
+                      completed={toolsCompleted}
+                    />
                   </div>
                 ) : messages.length === 0 ? (
                   <EmptyChat onPick={(t) => sendMessage({ text: t })} />
@@ -499,11 +534,12 @@ function SurveyComposer() {
                         }
                       />
                     ))}
-                    {status === "submitted" && (
-                      <div className="flex items-center gap-2.5 pl-0.5 text-sm text-muted-foreground">
-                        <img src={agentMark} alt="" className="h-6 w-6 rounded-md" />
-                        <Shimmer>Composing…</Shimmer>
-                      </div>
+                    {buildPhase !== "ready" && (
+                      <BuildStatusBanner
+                        phase={buildPhase}
+                        stepLabel={stepLabel}
+                        completed={toolsCompleted}
+                      />
                     )}
                     {error && (
                       <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -512,6 +548,7 @@ function SurveyComposer() {
                     )}
                   </div>
                 )}
+
               </ConversationContent>
               <ConversationScrollButton />
             </Conversation>
@@ -521,6 +558,23 @@ function SurveyComposer() {
               <div className="h-16 bg-gradient-to-t from-background via-background/85 to-transparent" />
               <div className="bg-background pb-5 pt-1">
                 <div className="pointer-events-auto mx-auto w-full max-w-[640px] px-6">
+                  <AnimatePresence>
+                    {showReadyPill && (
+                      <motion.div
+                        key="preview-ready"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+                        className="mb-2 flex justify-center"
+                      >
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1 text-[11px] text-emerald-300">
+                          <Check className="h-3 w-3" /> Preview ready
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {showSuggestions && (
                     <div className="mb-2 rounded-2xl border border-border bg-card/70 px-3 py-2 backdrop-blur">
                       <div className="mb-1.5 flex items-center justify-between">
@@ -641,10 +695,21 @@ function SurveyComposer() {
           </div>
 
           {/* Preview pane */}
-          {questions.length === 0 ? (
-            <PreviewSkeleton theme={theme} />
+          {!previewReady ? (
+            <PreviewSkeleton
+              theme={theme}
+              phase={buildPhase === "streaming" ? "active" : "idle"}
+              stepLabel={stepLabel}
+            />
           ) : (
+            <motion.div
+              className="flex min-h-0 flex-col"
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+            >
             <PreviewPane
+
             title={survey?.title ?? ""}
             slug={survey?.slug ?? null}
             theme={theme}
@@ -673,7 +738,9 @@ function SurveyComposer() {
             }))}
             onSelectText={(focus) => openDesign({ focus })}
             />
+            </motion.div>
           )}
+
         </div>
       </div>
     </AppShell>
