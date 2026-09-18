@@ -17,6 +17,9 @@ import {
 import { QuestionPreview, type TextFocus } from "@/components/QuestionPreview";
 import { FormDesignPanel, FormDesignPill } from "@/components/FormDesignPanel";
 import { PreviewSkeleton } from "@/components/PreviewSkeleton";
+import { BuildStatusBanner } from "@/components/BuildStatusBanner";
+import { readToolActivity, stepLabelFor, type BuildPhase } from "@/lib/build-phases";
+
 import type { QuestionType } from "@/lib/question-types";
 import { supabase } from "@/integrations/supabase/client";
 import { themeStyle, backgroundClass, DEFAULT_THEME, type SurveyTheme } from "@/lib/survey-theme";
