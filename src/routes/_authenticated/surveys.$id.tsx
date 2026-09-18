@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { AppShell } from "@/components/AppShell";
 import { getSurvey, updateSurvey } from "@/lib/surveys.functions";
 import { updateQuestion } from "@/lib/questions.functions";
